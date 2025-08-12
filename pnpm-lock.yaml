@@ -39,19 +39,19 @@ importers:
         version: 2.0.0
     devDependencies:
       '@babel/cli':
-        specifier: ^7.24.8
+        specifier: ^7.28.0
         version: 7.28.0(@babel/core@7.28.0)
       '@babel/core':
-        specifier: ^7.25.2
+        specifier: ^7.28.0
         version: 7.28.0
       '@babel/plugin-transform-export-namespace-from':
-        specifier: ^7.24.7
+        specifier: ^7.27.1
         version: 7.27.1(@babel/core@7.28.0)
       '@babel/plugin-transform-modules-commonjs':
-        specifier: ^7.24.8
+        specifier: ^7.27.1
         version: 7.27.1(@babel/core@7.28.0)
       '@effect/build-utils':
-        specifier: ^0.7.7
+        specifier: ^0.7.9
         version: 0.7.9
       '@effect/eslint-plugin':
         specifier: ^0.3.2
@@ -72,28 +72,28 @@ importers:
         specifier: 9.10.0
         version: 9.10.0
       '@types/node':
-        specifier: ^22.5.2
+        specifier: ^22.17.1
         version: 22.17.1
       '@typescript-eslint/eslint-plugin':
-        specifier: ^8.4.0
+        specifier: ^8.39.1
         version: 8.39.1(@typescript-eslint/parser@8.39.1(eslint@9.33.0)(typescript@5.9.2))(eslint@9.33.0)(typescript@5.9.2)
       '@typescript-eslint/parser':
-        specifier: ^8.4.0
+        specifier: ^8.39.1
         version: 8.39.1(eslint@9.33.0)(typescript@5.9.2)
       babel-plugin-annotate-pure-calls:
         specifier: ^0.4.0
         version: 0.4.0(patch_hash=lz2aochwly4t7pzapzh4fqay4m)(@babel/core@7.28.0)
       eslint:
-        specifier: ^9.10.0
+        specifier: ^9.33.0
         version: 9.33.0
       eslint-import-resolver-typescript:
-        specifier: ^3.6.3
+        specifier: ^3.10.1
         version: 3.10.1(eslint-plugin-import@2.32.0)(eslint@9.33.0)
       eslint-plugin-codegen:
         specifier: ^0.28.0
         version: 0.28.0(eslint@9.33.0)
       eslint-plugin-import:
-        specifier: ^2.30.0
+        specifier: ^2.32.0
         version: 2.32.0(@typescript-eslint/parser@8.39.1(eslint@9.33.0)(typescript@5.9.2))(eslint-import-resolver-typescript@3.10.1)(eslint@9.33.0)
       eslint-plugin-simple-import-sort:
         specifier: ^12.1.1
@@ -102,13 +102,13 @@ importers:
         specifier: ^2.0.0
         version: 2.0.0(eslint@9.33.0)
       tsx:
-        specifier: ^4.17.0
+        specifier: ^4.20.3
         version: 4.20.3
       typescript:
-        specifier: ^5.6.2
+        specifier: ^5.9.2
         version: 5.9.2
       vitest:
-        specifier: ^3.2.0
+        specifier: ^3.2.4
         version: 3.2.4(@types/node@22.17.1)(tsx@4.20.3)
     publishDirectory: dist
 
@@ -526,18 +526,18 @@ packages:
     resolution: {integrity: sha512-u3UPsIilWKOM3F9CXtrG8LEJmNxwoCQC/XVj4IKYXvvpx7QIi/Kg1LI5uDmDpKlac62NUtX7eLjRh+jVZcLOzw==}
     engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
 
-  '@jridgewell/gen-mapping@0.3.12':
-    resolution: {integrity: sha512-OuLGC46TjB5BbN1dH8JULVVZY4WTdkF7tV9Ys6wLL1rubZnCMstOhNHueU5bLCrnRuDhKPDM4g6sw4Bel5Gzqg==}
+  '@jridgewell/gen-mapping@0.3.13':
+    resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
 
   '@jridgewell/resolve-uri@3.1.2':
     resolution: {integrity: sha512-bRISgCIjP20/tbWSPWMEi54QVPRZExkuD9lJL+UIxUKtwVJA8wW1Trb1jMs1RFXo1CBTNZ/5hpC9QvmKWdopKw==}
     engines: {node: '>=6.0.0'}
 
-  '@jridgewell/sourcemap-codec@1.5.4':
-    resolution: {integrity: sha512-VT2+G1VQs/9oz078bLrYbecdZKs912zQlkelYpuf+SXF+QvZDYJlbx/LSx+meSAwdDFnF8FVXW92AVjjkVmgFw==}
+  '@jridgewell/sourcemap-codec@1.5.5':
+    resolution: {integrity: sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og==}
 
-  '@jridgewell/trace-mapping@0.3.29':
-    resolution: {integrity: sha512-uw6guiW/gcAGPDhLmd77/6lW8QLeiV5RUTsAX46Db6oLhGaVj4lhnPwb184s1bkc8kdVg/+h988dro8GRDpmYQ==}
+  '@jridgewell/trace-mapping@0.3.30':
+    resolution: {integrity: sha512-GQ7Nw5G2lTu/BtHTKfXhKHok2WGetd4XYcVKGx00SjAk8GMwgJM3zr6zORiPGuOE+/vkc90KtTosSSvaCjKb2Q==}
 
   '@msgpackr-extract/msgpackr-extract-darwin-arm64@3.0.3':
     resolution: {integrity: sha512-QZHtlVgbAdy2zAqNA9Gu1UpIuI8Xvsd1v8ic6B2pZmeFnFcMWiPLfWXh7TVw4eGEZ/C9TH281KwhVoeQUKbyjw==}
@@ -2541,13 +2541,13 @@ snapshots:
 
   '@ampproject/remapping@2.3.0':
     dependencies:
-      '@jridgewell/gen-mapping': 0.3.12
-      '@jridgewell/trace-mapping': 0.3.29
+      '@jridgewell/gen-mapping': 0.3.13
+      '@jridgewell/trace-mapping': 0.3.30
 
   '@babel/cli@7.28.0(@babel/core@7.28.0)':
     dependencies:
       '@babel/core': 7.28.0
-      '@jridgewell/trace-mapping': 0.3.29
+      '@jridgewell/trace-mapping': 0.3.30
       commander: 6.2.1
       convert-source-map: 2.0.0
       fs-readdir-recursive: 1.1.0
@@ -2596,8 +2596,8 @@ snapshots:
     dependencies:
       '@babel/parser': 7.28.0
       '@babel/types': 7.28.2
-      '@jridgewell/gen-mapping': 0.3.12
-      '@jridgewell/trace-mapping': 0.3.29
+      '@jridgewell/gen-mapping': 0.3.13
+      '@jridgewell/trace-mapping': 0.3.30
       jsesc: 3.1.0
 
   '@babel/helper-compilation-targets@7.27.2':
@@ -2926,19 +2926,19 @@ snapshots:
       '@types/yargs': 17.0.33
       chalk: 4.1.2
 
-  '@jridgewell/gen-mapping@0.3.12':
+  '@jridgewell/gen-mapping@0.3.13':
     dependencies:
-      '@jridgewell/sourcemap-codec': 1.5.4
-      '@jridgewell/trace-mapping': 0.3.29
+      '@jridgewell/sourcemap-codec': 1.5.5
+      '@jridgewell/trace-mapping': 0.3.30
 
   '@jridgewell/resolve-uri@3.1.2': {}
 
-  '@jridgewell/sourcemap-codec@1.5.4': {}
+  '@jridgewell/sourcemap-codec@1.5.5': {}
 
-  '@jridgewell/trace-mapping@0.3.29':
+  '@jridgewell/trace-mapping@0.3.30':
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
-      '@jridgewell/sourcemap-codec': 1.5.4
+      '@jridgewell/sourcemap-codec': 1.5.5
 
   '@msgpackr-extract/msgpackr-extract-darwin-arm64@3.0.3':
     optional: true
@@ -4360,7 +4360,7 @@ snapshots:
 
   magic-string@0.30.17:
     dependencies:
-      '@jridgewell/sourcemap-codec': 1.5.4
+      '@jridgewell/sourcemap-codec': 1.5.5
 
   make-dir@2.1.0:
     dependencies:
