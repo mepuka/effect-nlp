@@ -42,15 +42,7 @@ export type EntityPatternTypeId = typeof EntityPatternTypeId;
  * @since 1.0.0
  * @category models
  */
-export const Entity = Schema.Struct({
-  [EntityTypeId]: Schema.UniqueSymbolFromSelf(EntityTypeId),
-});
-
-/**
- * @since 1.0.0
- * @category models
- */
-export type Entity = Schema.Schema.Type<typeof Entity>;
+export class Entity extends Schema.Class<Entity>("Entity")({}) {}
 
 /**
  * @since 1.0.0
@@ -69,14 +61,6 @@ export type EntityPattern = Schema.Schema.Type<typeof EntityPattern>;
 // =============================================================================
 // Constructors
 // =============================================================================
-
-/**
- * @since 1.0.0
- * @category constructors
- */
-export const make = (): Entity => ({
-  [EntityTypeId]: EntityTypeId,
-});
 
 /**
  * @since 1.0.0

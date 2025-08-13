@@ -1,13 +1,13 @@
 {
-  "name": "@template/basic",
-  "version": "0.0.0",
+  "name": "effect-nlp",
+  "version": "0.1.0",
   "type": "module",
   "packageManager": "pnpm@10.14.0",
   "license": "MIT",
-  "description": "A basic Effect package",
+  "description": "Effect-based NLP service combining wink-nlp and compromise.js",
   "repository": {
     "type": "git",
-    "url": "<PLACEHOLDER>"
+    "url": "https://github.com/yourusername/effect-nlp"
   },
   "publishConfig": {
     "access": "public",
@@ -23,11 +23,18 @@
     "lint": "eslint \"**/{src,test,examples,scripts,dtslint}/**/*.{ts,mjs}\"",
     "lint-fix": "pnpm lint --fix",
     "test": "vitest",
-    "coverage": "vitest --coverage"
+    "test:unit": "vitest test/unit",
+    "test:integration": "vitest test/integration", 
+    "test:e2e": "vitest test/e2e",
+    "test:watch": "vitest --watch",
+    "coverage": "vitest --coverage",
+    "start": "tsx src/program.ts",
+    "dev": "tsx watch src/program.ts"
   },
   "dependencies": {
     "@effect/ai": "latest",
     "@effect/platform": "latest",
+    "compromise": "^14.14.4",
     "effect": "latest",
     "wink-eng-lite-web-model": "^1.8.1",
     "wink-lemmatizer": "^3.0.4",
