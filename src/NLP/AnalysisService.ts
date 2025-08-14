@@ -288,7 +288,10 @@ class AnalysisEngine {
   private customEntitiesLearned: boolean = false;
 
   constructor() {
-    this.wink = winkNLP(model, ["sbd", "pos", "ner", "negation", "sentiment"]);
+    // Initialize wink-nlp without plugins to enable custom entity recognition
+    // Note: Including plugins like ["sbd", "pos", "ner", "negation", "sentiment"]
+    // breaks custom entity learning in wink-nlp
+    this.wink = winkNLP(model);
     this.its = this.wink.its;
   }
 

@@ -7,8 +7,8 @@
  * @since 2.0.0
  */
 
-import { Context, Effect } from "effect";
-import type * as Core from "./Core.js";
+import { Context, Effect, Schema } from "effect";
+import * as Core from "./Core.js";
 
 // =============================================================================
 // Service Interface
@@ -44,6 +44,37 @@ export interface DocumentProcessor {
    * Get document statistics
    */
   readonly getStats: (document: Core.Document) => Core.DocumentStats;
+
+  /**
+   * Learn custom entity patterns for recognition
+   */
+  readonly learnCustomEntities: (
+    definition: Core.CustomEntityDefinition
+  ) => Effect.Effect<void, Core.CustomEntityError>;
+
+  /**
+   * Process text with custom entity patterns
+   */
+  readonly processWithCustomEntities: (
+    text: string,
+    definition: Core.CustomEntityDefinition
+  ) => Effect.Effect<Core.Document, Core.NlpError>;
+
+  /**
+   * Extract custom entities from text
+   */
+  readonly extractCustomEntities: (
+    text: string,
+    definition: Core.CustomEntityDefinition,
+    targetLabels?: ReadonlyArray<Core.EntityLabel>
+  ) => Effect.Effect<ReadonlyArray<Core.Entity>, Core.EntityExtractionError>;
+
+  /**
+   * Validate custom entity definition
+   */
+  readonly validateEntityDefinition: (
+    definition: Core.CustomEntityDefinition
+  ) => Effect.Effect<Core.CustomEntityDefinition, Core.EntityPatternError>;
 }
 
 /**
@@ -184,15 +215,15 @@ export const defaultConfig: ProcessingConfig = {
   enablePosTagging: true,
   enableLemmatization: true,
   entityLabels: [
-    "PERSON",
-    "ORGANIZATION",
-    "LOCATION",
-    "DATE",
-    "TIME",
-    "MONEY",
-    "PERCENT",
-    "EMAIL",
-    "URL",
+    Core.EntityLabels.PERSON,
+    Core.EntityLabels.ORGANIZATION,
+    Core.EntityLabels.LOCATION,
+    Core.EntityLabels.DATE,
+    Core.EntityLabels.TIME,
+    Core.EntityLabels.MONEY,
+    Core.EntityLabels.PERCENT,
+    Core.EntityLabels.EMAIL,
+    Core.EntityLabels.URL,
   ],
   language: "en",
 };
@@ -282,30 +313,49 @@ export const extractEntitiesByLabel =
   (labels: ReadonlyArray<Core.EntityLabel>) => (text: string) =>
     Effect.flatMap(process(text), (doc) =>
       Effect.succeed(
-        doc.getEntities().filter((entity) => labels.includes(entity.label))
+        doc
+          .getEntities()
+          .filter((entity) => labels.includes(entity.label as Core.EntityLabel))
       )
     );
 
 /**
- * Get all person names from text
- * @since 2.0.0
+ * Streamlined entity extraction by type
+ * @since 2.1.0
  */
-export const extractPersons = (text: string) =>
-  extractEntitiesByLabel(["PERSON"])(text);
+export const extract = {
+  /**
+   * Get all person names from text
+   */
+  persons: (text: string) =>
+    extractEntitiesByLabel([Core.EntityLabels.PERSON])(text),
 
-/**
- * Get all organizations from text
- * @since 2.0.0
- */
-export const extractOrganizations = (text: string) =>
-  extractEntitiesByLabel(["ORGANIZATION"])(text);
+  /**
+   * Get all organizations from text
+   */
+  organizations: (text: string) =>
+    extractEntitiesByLabel([Core.EntityLabels.ORGANIZATION])(text),
 
-/**
- * Get all locations from text
- * @since 2.0.0
- */
-export const extractLocations = (text: string) =>
-  extractEntitiesByLabel(["LOCATION"])(text);
+  /**
+   * Get all locations from text
+   */
+  locations: (text: string) =>
+    extractEntitiesByLabel([Core.EntityLabels.LOCATION])(text),
+
+  /**
+   * Get all entities of specific types
+   */
+  byLabels: (labels: ReadonlyArray<Core.EntityLabel>) => (text: string) =>
+    extractEntitiesByLabel(labels)(text),
+} as const;
+
+// Legacy exports (deprecated)
+/** @deprecated Use extract.persons instead */
+export const extractPersons = extract.persons;
+/** @deprecated Use extract.organizations instead */
+export const extractOrganizations = extract.organizations;
+/** @deprecated Use extract.locations instead */
+export const extractLocations = extract.locations;
 
 /**
  * Process text and get basic statistics
@@ -317,3 +367,150 @@ export const analyzeText = (text: string) =>
     const stats = yield* getStats(document);
     return { document, stats };
   });
+
+// =============================================================================
+// Custom Entity API Functions
+// =============================================================================
+
+/**
+ * Learn custom entity patterns
+ * @since 2.0.0
+ */
+export const learnCustomEntities = (definition: Core.CustomEntityDefinition) =>
+  Effect.flatMap(DocumentProcessorService, (service) =>
+    service.learnCustomEntities(definition)
+  );
+
+/**
+ * Process text with custom entity patterns
+ * @since 2.0.0
+ */
+export const processWithCustomEntities =
+  (definition: Core.CustomEntityDefinition) => (text: string) =>
+    Effect.flatMap(DocumentProcessorService, (service) =>
+      service.processWithCustomEntities(text, definition)
+    );
+
+/**
+ * Extract custom entities from text
+ * @since 2.0.0
+ */
+export const extractCustomEntities =
+  (
+    definition: Core.CustomEntityDefinition,
+    targetLabels?: ReadonlyArray<Core.EntityLabel>
+  ) =>
+  (text: string) =>
+    Effect.flatMap(DocumentProcessorService, (service) =>
+      service.extractCustomEntities(text, definition, targetLabels)
+    );
+
+/**
+ * Validate custom entity definition
+ * @since 2.0.0
+ */
+export const validateEntityDefinition = (
+  definition: Core.CustomEntityDefinition
+) =>
+  Effect.flatMap(DocumentProcessorService, (service) =>
+    service.validateEntityDefinition(definition)
+  );
+
+/**
+ * Create and validate custom entity definition (legacy API)
+ * @since 2.0.0
+ * @deprecated Use createCustomEntityDefinitionFromOptions for better ergonomics
+ */
+export const createCustomEntityDefinition = (
+  id: string,
+  domain: string,
+  version: string,
+  patterns: ReadonlyArray<Core.EntityPattern>,
+  options?: {
+    description?: string;
+    config?: Core.CustomEntityConfig;
+  }
+) =>
+  createCustomEntityDefinitionFromOptions({
+    id,
+    domain,
+    version,
+    patterns,
+    description: options?.description,
+    config: options?.config,
+  });
+
+// =============================================================================
+// Friendly Options-based API for Custom Entities
+// =============================================================================
+
+/**
+ * Schema for creating a CustomEntityDefinition using a single options object.
+ * - `version` defaults to "1.0.0"
+ * - `id` defaults to `${domain}_patterns`
+ *
+ * @since 2.1.0
+ */
+export const CustomEntityDefinitionOptionsSchema = Schema.Struct({
+  domain: Schema.String,
+  patterns: Schema.Array(Core.EntityPattern),
+  description: Schema.optional(Schema.String),
+  version: Schema.optional(Schema.String),
+  id: Schema.optional(Schema.String),
+  config: Schema.optional(Core.CustomEntityConfig),
+});
+
+export type CustomEntityDefinitionOptions =
+  typeof CustomEntityDefinitionOptionsSchema.Type;
+
+/**
+ * Create and validate a CustomEntityDefinition from a single options object.
+ * Applies sensible defaults and derives `id` from `domain` when omitted.
+ *
+ * @example
+ * createCustomEntityDefinitionFromOptions({
+ *   domain: "technology",
+ *   patterns,
+ *   // version: defaults to "1.0.0"
+ *   // id: defaults to `${domain}_patterns`
+ * })
+ */
+export const createCustomEntityDefinitionFromOptions = (
+  options: CustomEntityDefinitionOptions
+) =>
+  Effect.gen(function* () {
+    // Decode/validate the options
+    const parsed = options; // options are already strongly typed at compile-time
+
+    const domain = parsed.domain;
+    const version = parsed.version ?? "1.0.0";
+    const id = parsed.id ?? `${domain}_patterns`;
+
+    const definition = Core.CustomEntityDefinition.create(
+      id,
+      domain,
+      version,
+      parsed.patterns,
+      {
+        description: parsed.description ?? `${domain} patterns`,
+        config: parsed.config ?? Core.CustomEntityConfig.default,
+      }
+    );
+
+    return yield* validateEntityDefinition(definition);
+  });
+
+/**
+ * Extract entities using custom patterns for specific domain
+ * @since 2.0.0
+ */
+export const extractDomainEntities =
+  (domain: string, patterns: ReadonlyArray<Core.EntityPattern>) =>
+  (text: string) =>
+    Effect.gen(function* () {
+      const definition = yield* createCustomEntityDefinitionFromOptions({
+        domain,
+        patterns,
+      });
+      return yield* extractCustomEntities(definition)(text);
+    });

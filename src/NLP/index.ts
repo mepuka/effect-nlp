@@ -13,6 +13,7 @@ import * as DPModule from "./DocumentProcessor.js";
 // =============================================================================
 
 export * as Core from "./Core.js";
+export * as DocumentProcessor from "./DocumentProcessor.js";
 export * as DP from "./DocumentProcessor.js";
 export * from "./DocumentProcessorLive.js";
 
@@ -69,8 +70,15 @@ export const extractEntities = DPModule.extractEntities;
 export const tokenize = DPModule.tokenize;
 
 /**
- * Convenience functions for common entity types
+ * Streamlined entity extraction API
+ * @since 2.1.0
+ */
+export const extract = DPModule.extract;
+
+/**
+ * Legacy convenience functions for common entity types
  * @since 2.0.0
+ * @deprecated Use extract.persons, extract.organizations, extract.locations instead
  */
 export const extractPersons = DPModule.extractPersons;
 export const extractOrganizations = DPModule.extractOrganizations;
