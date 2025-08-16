@@ -1,0 +1,150 @@
+/**
+ * Wink Layer Demo Test
+ * Demonstrates usage of the comprehensive Wink layer
+ * @since 3.0.0
+ */
+
+import { describe, it, expect } from "vitest";
+import { Effect, Chunk } from "effect";
+import {
+  WinkLayerLive,
+  WinkLayerTest,
+  WinkTokenizationLive,
+  WinkNLPLive,
+  WinkEngine,
+  WinkTokenizer,
+  WinkVectorizer,
+  WinkUtils,
+} from "../../src/NLP/Wink/Layer.js";
+
+describe("Wink Layer Architecture", () => {
+  it("should provide all services with WinkLayerLive", async () => {
+    const program = Effect.gen(function* () {
+      // Access all services from the comprehensive layer
+      const engine = yield* WinkEngine;
+      const tokenizer = yield* WinkTokenizer;
+      const vectorizer = yield* WinkVectorizer;
+      const utils = yield* WinkUtils;
+
+      // Test basic functionality
+      const tokenCount = yield* engine.getTokenCount("Hello world test");
+      const tokens = yield* tokenizer.tokenize("Hello world test");
+
+      return {
+        tokenCount,
+        tokensLength: Chunk.size(tokens),
+        servicesAvailable: {
+          engine: !!engine,
+          tokenizer: !!tokenizer,
+          vectorizer: !!vectorizer,
+          utils: !!utils,
+        },
+      };
+    });
+
+    const result = await Effect.runPromise(
+      program.pipe(Effect.provide(WinkLayerLive))
+    );
+
+    expect(result.tokenCount).toBe(3);
+    expect(result.tokensLength).toBe(3);
+    expect(result.servicesAvailable.engine).toBe(true);
+    expect(result.servicesAvailable.tokenizer).toBe(true);
+    expect(result.servicesAvailable.vectorizer).toBe(true);
+    expect(result.servicesAvailable.utils).toBe(true);
+  });
+
+  it("should work with test layer", async () => {
+    const program = Effect.gen(function* () {
+      const tokenizer = yield* WinkTokenizer;
+      const tokens = yield* tokenizer.tokenize("test input");
+
+      return {
+        tokensLength: Chunk.size(tokens),
+      };
+    });
+
+    const result = await Effect.runPromise(
+      program.pipe(Effect.provide(WinkLayerTest))
+    );
+
+    expect(result.tokensLength).toBe(2); // "test input" splits to 2 tokens in test layer
+  });
+
+  it("should work with specialized layers", async () => {
+    // Test tokenization-only layer
+    const tokenizationProgram = Effect.gen(function* () {
+      const tokenizer = yield* WinkTokenizer;
+      const tokens = yield* tokenizer.tokenize("Hello tokenization");
+      return Chunk.size(tokens);
+    });
+
+    const tokenizationResult = await Effect.runPromise(
+      tokenizationProgram.pipe(Effect.provide(WinkTokenizationLive))
+    );
+
+    expect(tokenizationResult).toBe(2);
+
+    // Test full NLP layer
+    const nlpProgram = Effect.gen(function* () {
+      const tokenizer = yield* WinkTokenizer;
+      const vectorizer = yield* WinkVectorizer;
+
+      const document = yield* tokenizer.tokenizeToDocument("Hello NLP world");
+      yield* vectorizer.learnDocument(document);
+
+      const stats = yield* vectorizer.getCorpusStats();
+
+      return {
+        documentId: document.id,
+        totalDocuments: stats.totalDocuments,
+        hasTerms: Chunk.size(stats.uniqueTerms) > 0,
+      };
+    });
+
+    const nlpResult = await Effect.runPromise(
+      nlpProgram.pipe(Effect.provide(WinkNLPLive))
+    );
+
+    expect(nlpResult.totalDocuments).toBe(1);
+    expect(nlpResult.hasTerms).toBe(true);
+  });
+
+  it("should demonstrate layer composition benefits", async () => {
+    // This shows how the layer automatically provides all dependencies
+    const program = Effect.gen(function* () {
+      // We only request high-level services, but the layer provides everything needed
+      const tokenizer = yield* WinkTokenizer;
+      const vectorizer = yield* WinkVectorizer;
+      const utils = yield* WinkUtils;
+
+      // Complex workflow using multiple services
+      const document = yield* tokenizer.tokenizeToDocument(
+        "Machine learning is fascinating"
+      );
+      yield* vectorizer.learnDocument(document);
+
+      // Use utils for text processing
+      const textInput = { text: "Another example text" };
+      const processedTokens = yield* utils.tokenize(textInput);
+
+      const corpusStats = yield* vectorizer.getCorpusStats();
+
+      return {
+        originalDocument: document.text,
+        learnedDocuments: corpusStats.totalDocuments,
+        processedTokensCount: Chunk.size(processedTokens.tokens),
+        vocabularySize: Chunk.size(corpusStats.uniqueTerms),
+      };
+    });
+
+    const result = await Effect.runPromise(
+      program.pipe(Effect.provide(WinkLayerLive))
+    );
+
+    expect(result.originalDocument).toBe("Machine learning is fascinating");
+    expect(result.learnedDocuments).toBe(1);
+    expect(result.processedTokensCount).toBeGreaterThan(0);
+    expect(result.vocabularySize).toBeGreaterThan(0);
+  });
+});
