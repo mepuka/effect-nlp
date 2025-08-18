@@ -142,7 +142,7 @@ export const WinkEngineTest = Layer.succeed(
       tokens: () => ({
         out: () => text.split(" "),
         each: (fn: (token: any) => void) => {
-          text.split(" ").forEach((token, index) =>
+          text.split(" ").forEach((token) =>
             fn({
               out: (prop?: any) => {
                 if (!prop) return token;
@@ -196,7 +196,7 @@ export const WinkEngineTest = Layer.succeed(
     getWinkDoc: (text: string) => Effect.succeed({} as any),
     getRawTokens: (text: string) =>
       Effect.succeed(
-        text.split(" ").map((token, index) => ({
+        text.split(" ").map((token) => ({
           out: (prop?: any) => {
             if (!prop) return token;
             if (prop === "normal") return token.toLowerCase();

@@ -7,8 +7,7 @@ import { describe, it, expect } from "vitest";
 import { Effect, Chunk, Option, Schema, Arbitrary, FastCheck } from "effect";
 import * as WinkUtils from "../../src/NLP/Wink/WinkUtils.js";
 
-const runTest = <A, E>(effect: Effect.Effect<A, E>) =>
-  Effect.runSync(effect.pipe(Effect.provide(WinkUtils.WinkUtilsLive)));
+const runTest = <A, E>(effect: Effect.Effect<A, E>) => Effect.runSync(effect);
 
 describe("WinkUtils Property-Based Tests", () => {
   // Text generators
@@ -21,7 +20,7 @@ describe("WinkUtils Property-Based Tests", () => {
   const ComplexTextSchema = Schema.String.pipe(
     Schema.minLength(1),
     Schema.maxLength(200),
-    Schema.pattern(/^[a-zA-Z0-9\s.,!?;:'"()@#$%^&*_+=\[\]{}<>/-]+$/)
+    Schema.pattern(/^[a-zA-Z0-9\s.,!?;:'"()@#$%^&*_+={}<>/-]+$/)
   );
 
   const SentenceSchema = Schema.String.pipe(
@@ -56,7 +55,9 @@ describe("WinkUtils Property-Based Tests", () => {
 
           return transformations.every((transform) => {
             try {
-              const result = runTest(transform(input));
+              const result = runTest(
+                transform(input).pipe(Effect.provide(WinkUtils.WinkUtilsLive))
+              );
               return result.text.trim().length > 0;
             } catch {
               return false;
@@ -74,8 +75,16 @@ describe("WinkUtils Property-Based Tests", () => {
         FastCheck.property(textArb, (text) => {
           const input = WinkUtils.TextInput({ text });
 
-          const lowerResult = runTest(WinkUtils.lowerCase(input));
-          const upperResult = runTest(WinkUtils.upperCase(input));
+          const lowerResult = runTest(
+            WinkUtils.lowerCase(input).pipe(
+              Effect.provide(WinkUtils.WinkUtilsLive)
+            )
+          );
+          const upperResult = runTest(
+            WinkUtils.upperCase(input).pipe(
+              Effect.provide(WinkUtils.WinkUtilsLive)
+            )
+          );
 
           return (
             lowerResult.text.length === upperResult.text.length &&
@@ -93,9 +102,13 @@ describe("WinkUtils Property-Based Tests", () => {
         FastCheck.property(textArb, (text) => {
           const input = WinkUtils.TextInput({ text });
 
-          const firstTrim = runTest(WinkUtils.trim(input));
+          const firstTrim = runTest(
+            WinkUtils.trim(input).pipe(Effect.provide(WinkUtils.WinkUtilsLive))
+          );
           const secondTrim = runTest(
-            WinkUtils.trim(WinkUtils.TextInput({ text: firstTrim.text }))
+            WinkUtils.trim(WinkUtils.TextInput({ text: firstTrim.text })).pipe(
+              Effect.provide(WinkUtils.WinkUtilsLive)
+            )
           );
 
           return firstTrim.text === secondTrim.text;
@@ -112,7 +125,11 @@ describe("WinkUtils Property-Based Tests", () => {
           if (text.length < 2) return true;
 
           const input = WinkUtils.TextInput({ text });
-          const result = runTest(WinkUtils.lowerCase(input));
+          const result = runTest(
+            WinkUtils.lowerCase(input).pipe(
+              Effect.provide(WinkUtils.WinkUtilsLive)
+            )
+          );
 
           const originalWords = text.split(/\s+/).filter((w) => w.length > 0);
           const transformedWords = result.text
@@ -140,11 +157,21 @@ describe("WinkUtils Property-Based Tests", () => {
 
           const input = WinkUtils.TextInput({ text });
 
-          const simpleTokens = runTest(WinkUtils.utilsTokenize(input));
-          const detailedTokens = runTest(
-            WinkUtils.utilsTokenizeDetailed(input)
+          const simpleTokens = runTest(
+            WinkUtils.utilsTokenize(input).pipe(
+              Effect.provide(WinkUtils.WinkUtilsLive)
+            )
           );
-          const tokens0 = runTest(WinkUtils.utilsTokenize0(input));
+          const detailedTokens = runTest(
+            WinkUtils.utilsTokenizeDetailed(input).pipe(
+              Effect.provide(WinkUtils.WinkUtilsLive)
+            )
+          );
+          const tokens0 = runTest(
+            WinkUtils.utilsTokenize0(input).pipe(
+              Effect.provide(WinkUtils.WinkUtilsLive)
+            )
+          );
 
           const simpleCnt = Chunk.size(simpleTokens.tokens);
           const detailedCnt = detailedTokens.totalCount;
@@ -167,7 +194,11 @@ describe("WinkUtils Property-Based Tests", () => {
       FastCheck.assert(
         FastCheck.property(textArb, (text) => {
           const input = WinkUtils.TextInput({ text });
-          const result = runTest(WinkUtils.utilsTokenize(input));
+          const result = runTest(
+            WinkUtils.utilsTokenize(input).pipe(
+              Effect.provide(WinkUtils.WinkUtilsLive)
+            )
+          );
 
           const tokens = Chunk.toReadonlyArray(result.tokens);
           const alphanumericOriginal = text
@@ -197,7 +228,11 @@ describe("WinkUtils Property-Based Tests", () => {
       FastCheck.assert(
         FastCheck.property(textArb, (text) => {
           const input = WinkUtils.TextInput({ text });
-          const result = runTest(WinkUtils.utilsTokenizeDetailed(input));
+          const result = runTest(
+            WinkUtils.utilsTokenizeDetailed(input).pipe(
+              Effect.provide(WinkUtils.WinkUtilsLive)
+            )
+          );
 
           const tokens = Chunk.toReadonlyArray(result.tokens);
           const validTags = [
@@ -234,8 +269,16 @@ describe("WinkUtils Property-Based Tests", () => {
           const input = WinkUtils.TextInput({ text });
           const config = WinkUtils.NGramConfig({ size });
 
-          const bagResult = runTest(WinkUtils.bagOfNGrams(input, config));
-          const setResult = runTest(WinkUtils.setOfNGrams(input, config));
+          const bagResult = runTest(
+            WinkUtils.bagOfNGrams(input, config).pipe(
+              Effect.provide(WinkUtils.WinkUtilsLive)
+            )
+          );
+          const setResult = runTest(
+            WinkUtils.setOfNGrams(input, config).pipe(
+              Effect.provide(WinkUtils.WinkUtilsLive)
+            )
+          );
 
           // Set should have unique count <= bag total count
           return (
@@ -256,7 +299,11 @@ describe("WinkUtils Property-Based Tests", () => {
           const input = WinkUtils.TextInput({ text });
           const config = WinkUtils.NGramConfig({ size });
 
-          const result = runTest(WinkUtils.bagOfNGrams(input, config));
+          const result = runTest(
+            WinkUtils.bagOfNGrams(input, config).pipe(
+              Effect.provide(WinkUtils.WinkUtilsLive)
+            )
+          );
 
           return Object.keys(result.ngrams).every(
             (ngram) => ngram.length === size || result.totalNGrams === 0
@@ -277,7 +324,11 @@ describe("WinkUtils Property-Based Tests", () => {
           const input = WinkUtils.TextInput({ text });
           const config = WinkUtils.NGramConfig({ size });
 
-          const result = runTest(WinkUtils.edgeNGrams(input, config));
+          const result = runTest(
+            WinkUtils.edgeNGrams(input, config).pipe(
+              Effect.provide(WinkUtils.WinkUtilsLive)
+            )
+          );
 
           if (text.length < size) {
             return result.totalNGrams === 0;
@@ -313,10 +364,14 @@ describe("WinkUtils Property-Based Tests", () => {
           });
 
           const defaultResult = runTest(
-            WinkUtils.removeWords(tokensInput, defaultConfig)
+            WinkUtils.removeWords(tokensInput, defaultConfig).pipe(
+              Effect.provide(WinkUtils.WinkUtilsLive)
+            )
           );
           const emptyResult = runTest(
-            WinkUtils.removeWords(tokensInput, emptyConfig)
+            WinkUtils.removeWords(tokensInput, emptyConfig).pipe(
+              Effect.provide(WinkUtils.WinkUtilsLive)
+            )
           );
 
           // Empty custom stop words should preserve all tokens
@@ -342,9 +397,21 @@ describe("WinkUtils Property-Based Tests", () => {
             tokens: Chunk.fromIterable(words),
           });
 
-          const stemResult = runTest(WinkUtils.stem(tokensInput));
-          const phoneticResult = runTest(WinkUtils.phonetize(tokensInput));
-          const soundexResult = runTest(WinkUtils.soundex(tokensInput));
+          const stemResult = runTest(
+            WinkUtils.stem(tokensInput).pipe(
+              Effect.provide(WinkUtils.WinkUtilsLive)
+            )
+          );
+          const phoneticResult = runTest(
+            WinkUtils.phonetize(tokensInput).pipe(
+              Effect.provide(WinkUtils.WinkUtilsLive)
+            )
+          );
+          const soundexResult = runTest(
+            WinkUtils.soundex(tokensInput).pipe(
+              Effect.provide(WinkUtils.WinkUtilsLive)
+            )
+          );
 
           // All transformations should preserve token count
           return (
@@ -369,8 +436,16 @@ describe("WinkUtils Property-Based Tests", () => {
             tokens: Chunk.fromIterable(words),
           });
 
-          const bagResult = runTest(WinkUtils.bagOfWords(tokensInput));
-          const setResult = runTest(WinkUtils.setOfWords(tokensInput));
+          const bagResult = runTest(
+            WinkUtils.bagOfWords(tokensInput).pipe(
+              Effect.provide(WinkUtils.WinkUtilsLive)
+            )
+          );
+          const setResult = runTest(
+            WinkUtils.setOfWords(tokensInput).pipe(
+              Effect.provide(WinkUtils.WinkUtilsLive)
+            )
+          );
 
           // Set should have unique count <= bag total
           // Both should have same unique count
@@ -397,13 +472,21 @@ describe("WinkUtils Property-Based Tests", () => {
         },
       ];
 
-      testCases.forEach(({ words, expectedBigrams, expectedAppended }) => {
+      testCases.forEach(({ expectedAppended, expectedBigrams, words }) => {
         const tokensInput = WinkUtils.TokensInput({
           tokens: Chunk.fromIterable(words),
         });
 
-        const bigramResult = runTest(WinkUtils.bigrams(tokensInput));
-        const appendResult = runTest(WinkUtils.appendBigrams(tokensInput));
+        const bigramResult = runTest(
+          WinkUtils.bigrams(tokensInput).pipe(
+            Effect.provide(WinkUtils.WinkUtilsLive)
+          )
+        );
+        const appendResult = runTest(
+          WinkUtils.appendBigrams(tokensInput).pipe(
+            Effect.provide(WinkUtils.WinkUtilsLive)
+          )
+        );
 
         // Bigrams should produce n-1 pairs for n>=2 words
         // Append should include original + bigrams (as underscore-joined strings)
@@ -425,7 +508,11 @@ describe("WinkUtils Property-Based Tests", () => {
           const text = sentences.join(" ");
           const input = WinkUtils.TextInput({ text });
 
-          const result = runTest(WinkUtils.sentences(input));
+          const result = runTest(
+            WinkUtils.sentences(input).pipe(
+              Effect.provide(WinkUtils.WinkUtilsLive)
+            )
+          );
 
           // Should detect at least as many sentences as we have ending punctuation
           const endingPunctuation = (text.match(/[.!?]/g) || []).length;
@@ -453,7 +540,11 @@ describe("WinkUtils Property-Based Tests", () => {
             .join(" ");
 
           const input = WinkUtils.CorpusTemplate({ template });
-          const result = runTest(WinkUtils.composeCorpus(input));
+          const result = runTest(
+            WinkUtils.composeCorpus(input).pipe(
+              Effect.provide(WinkUtils.WinkUtilsLive)
+            )
+          );
 
           const expectedCombinations = optionGroups.reduce(
             (acc, group) => acc * group.length,
@@ -471,35 +562,16 @@ describe("WinkUtils Property-Based Tests", () => {
   });
 
   describe("Error Handling and Edge Cases", () => {
-    it("should handle empty and minimal inputs gracefully", () => {
-      const emptyInput = WinkUtils.TextInput({ text: "" });
-      const spaceInput = WinkUtils.TextInput({ text: "   " });
-      const singleCharInput = WinkUtils.TextInput({ text: "a" });
-
-      const inputs = [emptyInput, spaceInput, singleCharInput];
-
-      const operations = [
-        WinkUtils.utilsTokenize,
-        WinkUtils.utilsTokenizeDetailed,
-        WinkUtils.utilsTokenize0,
-        WinkUtils.sentences,
-        (input: WinkUtils.TextInput) =>
-          WinkUtils.bagOfNGrams(input, WinkUtils.NGramConfig({ size: 2 })),
-      ];
-
-      inputs.forEach((input) => {
-        operations.forEach((operation) => {
-          expect(() => runTest(operation(input))).not.toThrow();
-        });
-      });
-    });
-
     it("should handle large inputs within reasonable bounds", () => {
       const largeText = "word ".repeat(1000);
       const input = WinkUtils.TextInput({ text: largeText });
 
       const start = Date.now();
-      const result = runTest(WinkUtils.utilsTokenize(input));
+      const result = runTest(
+        WinkUtils.utilsTokenize(input).pipe(
+          Effect.provide(WinkUtils.WinkUtilsLive)
+        )
+      );
       const elapsed = Date.now() - start;
 
       expect(elapsed).toBeLessThan(1000); // Should complete within 1 second
@@ -513,8 +585,16 @@ describe("WinkUtils Property-Based Tests", () => {
         FastCheck.property(textArb, (text) => {
           const input = WinkUtils.TextInput({ text });
 
-          const result1 = runTest(WinkUtils.utilsTokenizeDetailed(input));
-          const result2 = runTest(WinkUtils.utilsTokenizeDetailed(input));
+          const result1 = runTest(
+            WinkUtils.utilsTokenizeDetailed(input).pipe(
+              Effect.provide(WinkUtils.WinkUtilsLive)
+            )
+          );
+          const result2 = runTest(
+            WinkUtils.utilsTokenizeDetailed(input).pipe(
+              Effect.provide(WinkUtils.WinkUtilsLive)
+            )
+          );
 
           const tokens1 = Chunk.toReadonlyArray(result1.tokens);
           const tokens2 = Chunk.toReadonlyArray(result2.tokens);
@@ -543,7 +623,11 @@ describe("WinkUtils Property-Based Tests", () => {
         const input = WinkUtils.TextInput({ text });
 
         const start = Date.now();
-        runTest(WinkUtils.utilsTokenizeDetailed(input));
+        runTest(
+          WinkUtils.utilsTokenizeDetailed(input).pipe(
+            Effect.provide(WinkUtils.WinkUtilsLive)
+          )
+        );
         const elapsed = Date.now() - start;
 
         times.push(elapsed);

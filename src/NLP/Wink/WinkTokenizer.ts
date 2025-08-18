@@ -42,7 +42,7 @@ const convertWinkToken = (
   const offset = winkToken.out(its.offset);
   const start = typeof offset === "number" ? offset : index * 2;
 
-  return Token({
+  return new Token({
     text: text || "",
     index: TokenIndex(index),
     start: CharPosition(start),
@@ -217,8 +217,8 @@ export class WinkTokenizer extends Effect.Service<WinkTokenizer>()(
             // Get document-level NLP properties
             const sentiment = doc.out(its.sentiment);
 
-            return Document({
-              id: DocumentId(id || `doc-${Date.now()}`),
+            return new Document({
+              id: DocumentId.make(id || `doc-${Date.now()}`),
               text,
               tokens: tokenObjects,
               sentences: sentenceObjects,
@@ -254,28 +254,29 @@ export const WinkTokenizerTest = Layer.succeed(
     tokenize: (text: string) =>
       Effect.succeed(
         Chunk.fromIterable(
-          text.split(" ").map((word, index) =>
-            Token({
-              text: word,
-              index: TokenIndex(index),
-              start: CharPosition(index * 2),
-              end: CharPosition(index * 2 + word.length),
-              pos: Option.some("NOUN"),
-              lemma: Option.some(word.toLowerCase()),
-              stem: Option.some(word.toLowerCase()),
-              normal: Option.some(word.toLowerCase()),
-              shape: Option.none(),
-              prefix: Option.none(),
-              suffix: Option.none(),
-              case: Option.none(),
-              uniqueId: Option.none(),
-              abbrevFlag: Option.none(),
-              contractionFlag: Option.none(),
-              stopWordFlag: Option.none(),
-              negationFlag: Option.none(),
-              precedingSpaces: Option.none(),
-              tags: [],
-            })
+          text.split(" ").map(
+            (word, index) =>
+              new Token({
+                text: word,
+                index: TokenIndex(index),
+                start: CharPosition(index * 2),
+                end: CharPosition(index * 2 + word.length),
+                pos: Option.some("NOUN"),
+                lemma: Option.some(word.toLowerCase()),
+                stem: Option.some(word.toLowerCase()),
+                normal: Option.some(word.toLowerCase()),
+                shape: Option.none(),
+                prefix: Option.none(),
+                suffix: Option.none(),
+                case: Option.none(),
+                uniqueId: Option.none(),
+                abbrevFlag: Option.none(),
+                contractionFlag: Option.none(),
+                stopWordFlag: Option.none(),
+                negationFlag: Option.none(),
+                precedingSpaces: Option.none(),
+                tags: [],
+              })
           )
         )
       ),

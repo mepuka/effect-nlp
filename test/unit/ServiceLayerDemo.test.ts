@@ -7,12 +7,12 @@
 import { describe, it, expect } from "vitest";
 import { Effect, Chunk } from "effect";
 import { WinkEngine } from "../../src/NLP/Wink/WinkEngine.js";
-import { WinkTokenizer } from "../../src/NLP/Wink/WinkTokenizer.js";
 import {
+  WinkTokenizer,
   tokenize,
   tokenizeToDocument,
 } from "../../src/NLP/Wink/WinkTokenizer.js";
-import { NLPAppLive, NLPAppTest } from "../../src/NLP/Layers/index.js";
+import { NLPAppLive } from "../../src/NLP/Layers/index.js";
 
 describe("Service Layer Architecture", () => {
   it("should use services with proper dependency injection (Live)", async () => {
@@ -56,7 +56,7 @@ describe("Service Layer Architecture", () => {
 
     // Use test layer for predictable behavior
     const result = await Effect.runPromise(
-      program.pipe(Effect.provide(NLPAppTest))
+      program.pipe(Effect.provide(NLPAppLive))
     );
 
     expect(result.tokensLength).toBe(2); // "test input" splits to 2 tokens

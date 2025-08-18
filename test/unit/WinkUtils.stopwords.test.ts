@@ -30,7 +30,11 @@ describe("WinkUtils Stop Words Handling", () => {
         customStopWords: Option.none(),
       });
 
-      const result = runTest(WinkUtils.removeWords(testTokens, config));
+      const result = runTest(
+        WinkUtils.removeWords(testTokens, config).pipe(
+          Effect.provide(WinkUtils.WinkUtilsLive)
+        )
+      );
       const filteredTokens = Chunk.toReadonlyArray(result.tokens);
 
       // Default stop words should remove common words like "the", "is", "and"
@@ -53,8 +57,16 @@ describe("WinkUtils Stop Words Handling", () => {
         customStopWords: Option.none(),
       });
 
-      const result1 = runTest(WinkUtils.removeWords(testTokens, config));
-      const result2 = runTest(WinkUtils.removeWords(testTokens, config));
+      const result1 = runTest(
+        WinkUtils.removeWords(testTokens, config).pipe(
+          Effect.provide(WinkUtils.WinkUtilsLive)
+        )
+      );
+      const result2 = runTest(
+        WinkUtils.removeWords(testTokens, config).pipe(
+          Effect.provide(WinkUtils.WinkUtilsLive)
+        )
+      );
 
       const tokens1 = Chunk.toReadonlyArray(result1.tokens);
       const tokens2 = Chunk.toReadonlyArray(result2.tokens);
@@ -72,7 +84,11 @@ describe("WinkUtils Stop Words Handling", () => {
         customStopWords: Option.some(customWords),
       });
 
-      const result = runTest(WinkUtils.removeWords(testTokens, config));
+      const result = runTest(
+        WinkUtils.removeWords(testTokens, config).pipe(
+          Effect.provide(WinkUtils.WinkUtilsLive)
+        )
+      );
       const filteredTokens = Chunk.toReadonlyArray(result.tokens);
 
       // Custom stop words should be removed
@@ -96,7 +112,11 @@ describe("WinkUtils Stop Words Handling", () => {
         customStopWords: Option.some(emptyWords),
       });
 
-      const result = runTest(WinkUtils.removeWords(testTokens, config));
+      const result = runTest(
+        WinkUtils.removeWords(testTokens, config).pipe(
+          Effect.provide(WinkUtils.WinkUtilsLive)
+        )
+      );
       const filteredTokens = Chunk.toReadonlyArray(result.tokens);
 
       // No words should be removed with empty custom stop words
@@ -110,7 +130,11 @@ describe("WinkUtils Stop Words Handling", () => {
         customStopWords: Option.some(customWords),
       });
 
-      const result = runTest(WinkUtils.removeWords(testTokens, config));
+      const result = runTest(
+        WinkUtils.removeWords(testTokens, config).pipe(
+          Effect.provide(WinkUtils.WinkUtilsLive)
+        )
+      );
       const filteredTokens = Chunk.toReadonlyArray(result.tokens);
 
       // Should still work correctly despite duplicates
@@ -131,10 +155,14 @@ describe("WinkUtils Stop Words Handling", () => {
       });
 
       const defaultResult = runTest(
-        WinkUtils.removeWords(testTokens, defaultConfig)
+        WinkUtils.removeWords(testTokens, defaultConfig).pipe(
+          Effect.provide(WinkUtils.WinkUtilsLive)
+        )
       );
       const customResult = runTest(
-        WinkUtils.removeWords(testTokens, customConfig)
+        WinkUtils.removeWords(testTokens, customConfig).pipe(
+          Effect.provide(WinkUtils.WinkUtilsLive)
+        )
       );
 
       const defaultTokens = Chunk.toReadonlyArray(defaultResult.tokens);
@@ -174,7 +202,11 @@ describe("WinkUtils Stop Words Handling", () => {
         customStopWords: Option.none(),
       });
 
-      const result = runTest(WinkUtils.removeWords(allStopWords, config));
+      const result = runTest(
+        WinkUtils.removeWords(allStopWords, config).pipe(
+          Effect.provide(WinkUtils.WinkUtilsLive)
+        )
+      );
       const filteredTokens = Chunk.toReadonlyArray(result.tokens);
 
       // Most or all should be removed
@@ -193,7 +225,11 @@ describe("WinkUtils Stop Words Handling", () => {
         ),
       });
 
-      const result = runTest(WinkUtils.removeWords(testTokensLocal, config));
+      const result = runTest(
+        WinkUtils.removeWords(testTokensLocal, config).pipe(
+          Effect.provide(WinkUtils.WinkUtilsLive)
+        )
+      );
       const filteredTokens = Chunk.toReadonlyArray(result.tokens);
 
       // All should be removed
@@ -210,7 +246,11 @@ describe("WinkUtils Stop Words Handling", () => {
         customStopWords: Option.some(Chunk.fromIterable(["the", "cat"])), // lowercase
       });
 
-      const result = runTest(WinkUtils.removeWords(mixedCaseTokens, config));
+      const result = runTest(
+        WinkUtils.removeWords(mixedCaseTokens, config).pipe(
+          Effect.provide(WinkUtils.WinkUtilsLive)
+        )
+      );
       const filteredTokens = Chunk.toReadonlyArray(result.tokens);
 
       // Case sensitivity depends on wink-nlp-utils implementation
@@ -228,7 +268,11 @@ describe("WinkUtils Stop Words Handling", () => {
         customStopWords: Option.some(Chunk.fromIterable(["@user", "#hashtag"])),
       });
 
-      const result = runTest(WinkUtils.removeWords(specialTokens, config));
+      const result = runTest(
+        WinkUtils.removeWords(specialTokens, config).pipe(
+          Effect.provide(WinkUtils.WinkUtilsLive)
+        )
+      );
       const filteredTokens = Chunk.toReadonlyArray(result.tokens);
 
       // Should handle special characters correctly
@@ -249,7 +293,11 @@ describe("WinkUtils Stop Words Handling", () => {
       });
 
       const start = Date.now();
-      const result = runTest(WinkUtils.removeWords(testTokens, config));
+      const result = runTest(
+        WinkUtils.removeWords(testTokens, config).pipe(
+          Effect.provide(WinkUtils.WinkUtilsLive)
+        )
+      );
       const elapsed = Date.now() - start;
 
       // Should complete quickly even with large stop word list
@@ -265,7 +313,11 @@ describe("WinkUtils Stop Words Handling", () => {
       const start = Date.now();
 
       for (let i = 0; i < 100; i++) {
-        const result = runTest(WinkUtils.removeWords(testTokens, config));
+        const result = runTest(
+          WinkUtils.removeWords(testTokens, config).pipe(
+            Effect.provide(WinkUtils.WinkUtilsLive)
+          )
+        );
         expect(result.transformedCount).toBeLessThan(result.originalCount);
       }
 

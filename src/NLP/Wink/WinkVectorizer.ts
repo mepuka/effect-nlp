@@ -13,7 +13,14 @@ import { createRequire } from "module";
 
 // Import the BM25 vectorizer utility using createRequire for ES modules
 const require = createRequire(import.meta.url);
-const BM25Vectorizer = require("wink-nlp/utilities/bm25-vectorizer");
+const BM25Vectorizer: BM25VectorizerFactory = require("wink-nlp/utilities/bm25-vectorizer");
+
+/**
+ * Type for BM25Vectorizer output functions
+ * These functions receive tf, idf, terms, docId, and sumOfAllDLs parameters
+ * Note: The actual signature varies based on the specific its function being used
+ */
+export type BM25OutputFunction<T> = (...args: Array<any>) => T;
 
 /**
  * BM25 configuration parameters
@@ -23,7 +30,80 @@ export interface BM25Config {
   readonly b: number; // Controls doc length normalization (default: 0.75)
   readonly k: number; // Controls IDF saturation (default: 1)
   readonly norm: "none" | "l1" | "l2"; // Vector normalization (default: "none")
+  readonly precision?: number; // Decimal precision for calculations (default: 6)
 }
+
+/**
+ * Type definition for the BM25Vectorizer instance returned by wink-nlp
+ * Based on the actual implementation in wink-nlp/utilities/bm25-vectorizer.js
+ */
+export interface BM25VectorizerInstance {
+  /**
+   * Learn from a tokenized document
+   * @param tokens - Array of tokenized strings
+   */
+  learn(tokens: Array<string>): void;
+
+  /**
+   * Get output based on the specified function
+   * @param f - Output function from wink-nlp's its module
+   * @returns Array containing strings, objects, or arrays based on the function
+   */
+  out<T>(f: BM25OutputFunction<T>): T;
+
+  /**
+   * Get document-specific APIs
+   * @param n - Document index
+   * @returns Document API object
+   */
+  doc(n: number): {
+    /**
+     * Get document output based on function
+     * @param f - Output function
+     * @returns Document-specific output
+     */
+    out(f: any): any;
+    /**
+     * Get number of unique tokens in the document
+     * @returns Number of unique tokens
+     */
+    length(): number;
+  };
+
+  /**
+   * Compute vector for input tokens using learned tf-idf
+   * @param tokens - Array of tokenized strings
+   * @returns Array of numbers representing the vector
+   */
+  vectorOf(tokens: Array<string>): Array<number>;
+
+  /**
+   * Compute bag-of-words for input tokens
+   * @param tokens - Array of tokenized strings
+   * @param processOOV - Whether to process out-of-vocabulary tokens (default: false)
+   * @returns Object with term frequencies
+   */
+  bowOf(tokens: Array<string>, processOOV?: boolean): Record<string, number>;
+
+  /**
+   * Get current configuration
+   * @returns Configuration object
+   */
+  config(): { k: number; k1: number; b: number; norm: string };
+
+  /**
+   * Load model from JSON
+   * @param json - Model JSON string
+   */
+  loadModel(json: string): void;
+}
+
+/**
+ * Type definition for the BM25Vectorizer factory function
+ */
+export type BM25VectorizerFactory = (
+  config?: BM25Config
+) => BM25VectorizerInstance;
 
 /**
  * Default BM25 configuration

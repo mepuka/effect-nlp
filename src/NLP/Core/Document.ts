@@ -24,12 +24,28 @@ interface DocumentProps {
   readonly sentences: Chunk.Chunk<Sentence>;
   readonly sentiment: Option.Option<number>;
 }
+/**
+ * import * as assert from "node:assert"
+import { Data, Equal } from "effect"
+
+class Person extends Data.TaggedClass("Person")<{ readonly name: string }> {}
+
+// Creating instances of Person
+const mike1 = new Person({ name: "Mike" })
+const mike2 = new Person({ name: "Mike" })
+const john = new Person({ name: "John" })
+
+// Checking equality
+assert.deepStrictEqual(Equal.equals(mike1, mike2), true)
+assert.deepStrictEqual(Equal.equals(mike1, john), false)
+
+assert.deepStrictEqual(mike1._tag, "Person")
+ */
 
 /**
  * Document constructor using Data.case
  */
-export const Document = Data.case<DocumentProps>();
-export type Document = ReturnType<typeof Document>;
+export class Document extends Data.TaggedClass("Document")<DocumentProps> {}
 
 /**
  * Document helpers
@@ -93,17 +109,17 @@ export const DocumentHelpers = {
    * Update tokens (returns new document)
    */
   withTokens: (doc: Document, tokens: Chunk.Chunk<Token>): Document =>
-    Document({ ...doc, tokens }),
+    new Document({ ...doc, tokens }),
 
   /**
    * Update sentences (returns new document)
    */
   withSentences: (doc: Document, sentences: Chunk.Chunk<Sentence>): Document =>
-    Document({ ...doc, sentences }),
+    new Document({ ...doc, sentences }),
 
   /**
    * Update sentiment (returns new document)
    */
   withSentiment: (doc: Document, sentiment: Option.Option<number>): Document =>
-    Document({ ...doc, sentiment }),
+    new Document({ ...doc, sentiment }),
 };

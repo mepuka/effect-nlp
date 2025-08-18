@@ -46,8 +46,7 @@ interface TokenProps {
 /**
  * Token constructor using Data.case
  */
-export const Token = Data.case<TokenProps>();
-export type Token = ReturnType<typeof Token>;
+export class Token extends Data.TaggedClass("Token")<TokenProps> {}
 
 /**
  * Token helpers

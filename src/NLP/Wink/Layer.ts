@@ -20,12 +20,11 @@ import { WinkUtils, WinkUtilsLive } from "./WinkUtils.js";
  * Includes all Wink services with proper dependency resolution
  */
 export const WinkLayerLive = Layer.mergeAll(
-  WinkEngineLive,
   WinkTokenizerLive,
   WinkVectorizerLive(),
   WinkSimilarityLive,
   WinkUtilsLive
-);
+).pipe(Layer.provideMerge(WinkEngine.Default));
 
 /**
  * Complete Wink services layer for testing
