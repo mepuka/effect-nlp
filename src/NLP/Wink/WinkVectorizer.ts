@@ -1,10 +1,10 @@
 /**
- * Pure Wink BM25 Vectorizer Service
+ * Pure Wink BM25 Vectorizer Service with Ref-based State Management
  * Clean wrapper around wink-nlp's BM25 vectorizer with Effect patterns
  * @since 3.0.0
  */
 
-import { Effect, Data, Context, Layer, Chunk, Option } from "effect";
+import { Effect, Data, Layer, Chunk, Option, Ref } from "effect";
 import { WinkEngine } from "./WinkEngine.js";
 import type { Document } from "../Core/Document.js";
 import { DocumentId } from "../Core/Document.js";
@@ -174,329 +174,344 @@ export class VectorizerError extends Data.TaggedError("VectorizerError")<{
 }> {}
 
 /**
+ * Vectorizer state managed by Ref
+ */
+export interface VectorizerState {
+  readonly vectorizer: BM25VectorizerInstance;
+  readonly documentIds: ReadonlyArray<DocumentId>;
+  readonly config: BM25Config;
+}
+
+/**
  * Wink BM25 Vectorizer Service
  */
-export class WinkVectorizer extends Context.Tag("effect-nlp/WinkVectorizer")<
-  WinkVectorizer,
+export class WinkVectorizer extends Effect.Service<WinkVectorizer>()(
+  "effect-nlp/WinkVectorizer",
   {
-    /**
-     * Learn from a single document
-     */
-    readonly learnDocument: (
-      document: Document
-    ) => Effect.Effect<void, VectorizerError>;
-
-    /**
-     * Learn from multiple documents (batch learnmng)
-     */
-    readonly learnDocuments: (
-      documents: Chunk.Chunk<Document>
-    ) => Effect.Effect<void, VectorizerError>;
-
-    /**
-     * Get vector representation of a document
-     */
-    readonly vectorizeDocument: (
-      document: Document
-    ) => Effect.Effect<DocumentVector, VectorizerError>;
-
-    /**
-     * Get bag-of-words representation of a document
-     */
-    readonly getBagOfWords: (
-      document: Document
-    ) => Effect.Effect<BagOfWords, VectorizerError>;
-
-    /**
-     * Get vector for arbitrary text (doesn't need to be a learned document)
-     */
-    readonly vectorizeText: (
-      text: string,
-      id?: string
-    ) => Effect.Effect<DocumentVector, VectorizerError>;
-
-    /**
-     * Get corpus statistics after learning
-     */
-    readonly getCorpusStats: () => Effect.Effect<CorpusStats, VectorizerError>;
-
-    /**
-     * Get term frequencies for a specific learned document by index
-     */
-    readonly getDocumentTermFrequencies: (
-      docIndex: number
-    ) => Effect.Effect<Chunk.Chunk<TermFrequency>, VectorizerError>;
-
-    /**
-     * Export model as JSON for saving
-     */
-    readonly exportModel: () => Effect.Effect<string, VectorizerError>;
-
-    /**
-     * Load model from JSON
-     */
-    readonly loadModel: (
-      modelJson: string
-    ) => Effect.Effect<void, VectorizerError>;
-
-    /**
-     * Get current configuration
-     */
-    readonly getConfig: () => BM25Config;
-
-    /**
-     * Reset vectorizer (clear all learned data)
-     */
-    readonly reset: () => Effect.Effect<void, VectorizerError>;
-  }
->() {}
-
-/**
- * Extract normalized tokens from Core Token objects
- * Falls back to text if normal is not available
- */
-const extractNormalizedTokens = (tokens: Chunk.Chunk<Token>): Array<string> =>
-  Chunk.toArray(
-    Chunk.map(tokens, (token) =>
-      Option.getOrElse(token.normal, () => token.text)
-    )
-  );
-
-/**
- * Create WinkVectorizer implementation
- */
-const createWinkVectorizerImpl = (
-  engine: WinkEngine,
-  config: BM25Config = DefaultBM25Config
-) => {
-  const vectorizer = BM25Vectorizer(config);
-  const its = engine.getIts();
-  // let isLearned = false;
-  const documentIds: Array<DocumentId> = [];
-
-  return WinkVectorizer.of({
-    learnDocument: (document: Document) =>
-      Effect.try({
-        try: () => {
-          // Use existing Core Token data if available, otherwise tokenize
-          const tokens =
-            Chunk.size(document.tokens) > 0
-              ? extractNormalizedTokens(document.tokens)
-              : (() => {
-                  const winkDoc = engine.getDocument(document.text);
-                  return winkDoc.tokens().out(its.normal);
-                })();
-          vectorizer.learn(tokens);
-          documentIds.push(document.id);
-        },
-        catch: (error) =>
-          new VectorizerError({
-            message: `Failed to learn document ${document.id}`,
-            cause: error,
-          }),
-      }),
-
-    learnDocuments: (documents: Chunk.Chunk<Document>) =>
-      Effect.forEach(
-        documents,
-        (doc) =>
-          Effect.try({
-            try: () => {
-              // Use existing Core Token data if available, otherwise tokenize
-              const tokens =
-                Chunk.size(doc.tokens) > 0
-                  ? extractNormalizedTokens(doc.tokens)
-                  : (() => {
-                      const winkDoc = engine.getDocument(doc.text);
-                      return winkDoc.tokens().out(its.normal);
-                    })();
-              vectorizer.learn(tokens);
-              documentIds.push(doc.id);
-            },
-            catch: (error) =>
-              new VectorizerError({
-                message: `Failed to learn document ${doc.id}`,
-                cause: error,
-              }),
-          }),
-        { discard: true }
-      ),
-
-    vectorizeDocument: (document: Document) =>
-      Effect.try({
-        try: () => {
-          // Use existing Core Token data if available, otherwise tokenize
-          const tokens =
-            Chunk.size(document.tokens) > 0
-              ? extractNormalizedTokens(document.tokens)
-              : (() => {
-                  const winkDoc = engine.getDocument(document.text);
-                  return winkDoc.tokens().out(its.normal);
-                })();
-          const vector = vectorizer.vectorOf(tokens);
-          const terms = vectorizer.out(its.terms);
-
-          return DocumentVector({
-            documentId: document.id,
-            vector: Chunk.fromIterable(vector),
-            terms: Chunk.fromIterable(terms),
-          });
-        },
-        catch: (error) =>
-          new VectorizerError({
-            message: `Failed to vectorize document ${document.id}`,
-            cause: error,
-          }),
-      }),
-
-    getBagOfWords: (document: Document) =>
-      Effect.try({
-        try: () => {
-          // Use existing Core Token data if available, otherwise tokenize
-          const tokens =
-            Chunk.size(document.tokens) > 0
-              ? extractNormalizedTokens(document.tokens)
-              : (() => {
-                  const winkDoc = engine.getDocument(document.text);
-                  return winkDoc.tokens().out(its.normal);
-                })();
-          const bow = vectorizer.bowOf(tokens, true); // processOOV = true
-
-          return BagOfWords({
-            documentId: document.id,
-            bow,
-          });
-        },
-        catch: (error) =>
-          new VectorizerError({
-            message: `Failed to get bag-of-words for document ${document.id}`,
-            cause: error,
-          }),
-      }),
-
-    vectorizeText: (text: string, id?: string) =>
-      Effect.try({
-        try: () => {
-          const winkDoc = engine.getDocument(text);
-          const tokens = winkDoc.tokens().out(its.normal);
-          const vector = vectorizer.vectorOf(tokens);
-          const terms = vectorizer.out(its.terms);
-
-          return DocumentVector({
-            documentId: DocumentId.make(id || `text-${Date.now()}`),
-            vector: Chunk.fromIterable(vector),
-            terms: Chunk.fromIterable(terms),
-          });
-        },
-        catch: (error) =>
-          new VectorizerError({
-            message: "Failed to vectorize text",
-            cause: error,
-          }),
-      }),
-
-    getCorpusStats: () =>
-      Effect.try({
-        try: () => {
-          const terms = vectorizer.out(its.terms);
-          const docTermMatrix = vectorizer.out(its.docTermMatrix);
-          const idfData = vectorizer.out(its.idf);
-
-          const idfValues = Chunk.fromIterable(
-            idfData.map(([term, idf]: [string, number]) =>
-              InverseDocumentFrequency({ term, idf })
-            )
-          );
-
-          return CorpusStats({
-            totalDocuments: documentIds.length,
-            uniqueTerms: Chunk.fromIterable(terms),
-            documentTermMatrix: Chunk.fromIterable(
-              docTermMatrix.map((row: Array<number>) => Chunk.fromIterable(row))
-            ),
-            idfValues: idfValues as Chunk.Chunk<InverseDocumentFrequency>,
-          });
-        },
-        catch: (error) =>
-          new VectorizerError({
-            message: "Failed to get corpus statistics",
-            cause: error,
-          }),
-      }),
-
-    getDocumentTermFrequencies: (docIndex: number) =>
-      Effect.try({
-        try: () => {
-          const tfData = vectorizer.doc(docIndex).out(its.tf);
-          return Chunk.fromIterable(
-            tfData.map(([term, frequency]: [string, number]) =>
-              TermFrequency({ term, frequency })
-            )
-          );
-        },
-        catch: (error) =>
-          new VectorizerError({
-            message: `Failed to get term frequencies for document ${docIndex}`,
-            cause: error,
-          }),
-      }),
-
-    exportModel: () =>
-      Effect.try({
-        try: () => JSON.stringify(vectorizer.out(its.modelJSON)),
-        catch: (error) =>
-          new VectorizerError({
-            message: "Failed to export model",
-            cause: error,
-          }),
-      }),
-
-    loadModel: (modelJson: string) =>
-      Effect.try({
-        try: () => {
-          const model = JSON.parse(modelJson);
-          vectorizer.loadModel(model);
-          // isLearned = true;
-        },
-        catch: (error) =>
-          new VectorizerError({
-            message: "Failed to load model",
-            cause: error,
-          }),
-      }),
-
-    getConfig: () => config,
-
-    reset: () =>
-      Effect.try({
-        try: () => {
-          // Create new vectorizer instance to reset state
-          Object.assign(vectorizer, BM25Vectorizer(config));
-          documentIds.length = 0;
-          // isLearned = false;
-        },
-        catch: (error) =>
-          new VectorizerError({
-            message: "Failed to reset vectorizer",
-            cause: error,
-          }),
-      }),
-  });
-};
-
-/**
- * Live implementation of WinkVectorizer
- */
-export const WinkVectorizerLive = (config?: Partial<BM25Config>) =>
-  Layer.effect(
-    WinkVectorizer,
-    Effect.gen(function* () {
+    effect: Effect.gen(function* () {
       const engine = yield* WinkEngine;
+      const its = yield* engine.its;
 
-      const finalConfig = { ...DefaultBM25Config, ...config };
-      return createWinkVectorizerImpl(engine, finalConfig);
-    })
-  );
+      // Initialize vectorizer state with Ref
+      const config = DefaultBM25Config;
+      const stateRef = yield* Ref.make<VectorizerState>({
+        vectorizer: BM25Vectorizer(config),
+        documentIds: [],
+        config,
+      });
+
+      /**
+       * Extract normalized tokens from Core Token objects
+       * Falls back to text if normal is not available
+       */
+      const extractNormalizedTokens = (
+        tokens: Chunk.Chunk<Token>
+      ): Array<string> =>
+        Chunk.toArray(
+          Chunk.map(tokens, (token) =>
+            Option.getOrElse(token.normal, () => token.text)
+          )
+        );
+
+      return {
+        /**
+         * Learn from a single document
+         */
+        learnDocument: (document: Document) =>
+          Effect.gen(function* () {
+            const state = yield* Ref.get(stateRef);
+
+            // Use existing Core Token data if available, otherwise tokenize
+            const tokens =
+              Chunk.size(document.tokens) > 0
+                ? extractNormalizedTokens(document.tokens)
+                : yield* Effect.gen(function* () {
+                    const winkDoc = yield* engine.getDocument(document.text);
+                    return winkDoc.tokens().out(its.normal);
+                  });
+
+            state.vectorizer.learn(tokens);
+
+            // Update state with new document ID
+            yield* Ref.update(stateRef, (s) => ({
+              ...s,
+              documentIds: [...s.documentIds, document.id],
+            }));
+          }).pipe(
+            Effect.mapError(
+              (error) =>
+                new VectorizerError({
+                  message: `Failed to learn document ${document.id}`,
+                  cause: error,
+                })
+            )
+          ),
+
+        /**
+         * Learn from multiple documents (batch learning)
+         */
+        learnDocuments: (documents: Chunk.Chunk<Document>) =>
+          Effect.forEach(
+            documents,
+            (doc) =>
+              Effect.gen(function* () {
+                const state = yield* Ref.get(stateRef);
+
+                // Use existing Core Token data if available, otherwise tokenize
+                const tokens =
+                  Chunk.size(doc.tokens) > 0
+                    ? extractNormalizedTokens(doc.tokens)
+                    : yield* Effect.gen(function* () {
+                        const winkDoc = yield* engine.getDocument(doc.text);
+                        return winkDoc.tokens().out(its.normal);
+                      });
+
+                state.vectorizer.learn(tokens);
+
+                // Update state with new document ID
+                yield* Ref.update(stateRef, (s) => ({
+                  ...s,
+                  documentIds: [...s.documentIds, doc.id],
+                }));
+              }).pipe(
+                Effect.mapError(
+                  (error) =>
+                    new VectorizerError({
+                      message: `Failed to learn document ${doc.id}`,
+                      cause: error,
+                    })
+                )
+              ),
+            { discard: true }
+          ),
+
+        /**
+         * Get vector representation of a document
+         */
+        vectorizeDocument: (document: Document) =>
+          Effect.gen(function* () {
+            const state = yield* Ref.get(stateRef);
+
+            // Use existing Core Token data if available, otherwise tokenize
+            const tokens =
+              Chunk.size(document.tokens) > 0
+                ? extractNormalizedTokens(document.tokens)
+                : yield* Effect.gen(function* () {
+                    const winkDoc = yield* engine.getDocument(document.text);
+                    return winkDoc.tokens().out(its.normal);
+                  });
+
+            const vector = state.vectorizer.vectorOf(tokens);
+            const terms = state.vectorizer.out(its.terms) as Array<string>;
+
+            return DocumentVector({
+              documentId: document.id,
+              vector: Chunk.fromIterable(vector),
+              terms: Chunk.fromIterable(terms),
+            });
+          }).pipe(
+            Effect.mapError(
+              (error) =>
+                new VectorizerError({
+                  message: `Failed to vectorize document ${document.id}`,
+                  cause: error,
+                })
+            )
+          ),
+
+        /**
+         * Get bag-of-words representation of a document
+         */
+        getBagOfWords: (document: Document) =>
+          Effect.gen(function* () {
+            const state = yield* Ref.get(stateRef);
+
+            // Use existing Core Token data if available, otherwise tokenize
+            const tokens =
+              Chunk.size(document.tokens) > 0
+                ? extractNormalizedTokens(document.tokens)
+                : yield* Effect.gen(function* () {
+                    const winkDoc = yield* engine.getDocument(document.text);
+                    return winkDoc.tokens().out(its.normal);
+                  });
+
+            const bow = state.vectorizer.bowOf(tokens, true); // processOOV = true
+
+            return BagOfWords({
+              documentId: document.id,
+              bow,
+            });
+          }).pipe(
+            Effect.mapError(
+              (error) =>
+                new VectorizerError({
+                  message: `Failed to get bag-of-words for document ${document.id}`,
+                  cause: error,
+                })
+            )
+          ),
+
+        /**
+         * Get vector for arbitrary text (doesn't need to be a learned document)
+         */
+        vectorizeText: (text: string, id?: string) =>
+          Effect.gen(function* () {
+            const state = yield* Ref.get(stateRef);
+            const winkDoc = yield* engine.getDocument(text);
+            const tokens = winkDoc.tokens().out(its.normal);
+            const vector = state.vectorizer.vectorOf(tokens);
+            const terms = state.vectorizer.out(its.terms) as Array<string>;
+
+            return DocumentVector({
+              documentId: DocumentId.make(id || `text-${Date.now()}`),
+              vector: Chunk.fromIterable(vector),
+              terms: Chunk.fromIterable(terms),
+            });
+          }).pipe(
+            Effect.mapError(
+              (error) =>
+                new VectorizerError({
+                  message: "Failed to vectorize text",
+                  cause: error,
+                })
+            )
+          ),
+
+        /**
+         * Get corpus statistics after learning
+         */
+        getCorpusStats: () =>
+          Effect.gen(function* () {
+            const state = yield* Ref.get(stateRef);
+            const terms = state.vectorizer.out(its.terms) as Array<string>;
+            const docTermMatrix = state.vectorizer.out(
+              its.docTermMatrix
+            ) as Array<Array<number>>;
+            const idfData = state.vectorizer.out(its.idf) as Array<
+              [string, number]
+            >;
+
+            const idfValues = Chunk.fromIterable(
+              idfData.map(([term, idf]: [string, number]) =>
+                InverseDocumentFrequency({ term, idf })
+              )
+            );
+
+            return CorpusStats({
+              totalDocuments: state.documentIds.length,
+              uniqueTerms: Chunk.fromIterable(terms),
+              documentTermMatrix: Chunk.fromIterable(
+                docTermMatrix.map((row: Array<number>) =>
+                  Chunk.fromIterable(row)
+                )
+              ),
+              idfValues: idfValues as Chunk.Chunk<InverseDocumentFrequency>,
+            });
+          }).pipe(
+            Effect.mapError(
+              (error) =>
+                new VectorizerError({
+                  message: "Failed to get corpus statistics",
+                  cause: error,
+                })
+            )
+          ),
+
+        /**
+         * Get term frequencies for a specific learned document by index
+         */
+        getDocumentTermFrequencies: (docIndex: number) =>
+          Effect.gen(function* () {
+            const state = yield* Ref.get(stateRef);
+            const tfData = state.vectorizer.doc(docIndex).out(its.tf);
+            return Chunk.fromIterable(
+              tfData.map(([term, frequency]: [string, number]) =>
+                TermFrequency({ term, frequency })
+              )
+            );
+          }).pipe(
+            Effect.mapError(
+              (error) =>
+                new VectorizerError({
+                  message: `Failed to get term frequencies for document ${docIndex}`,
+                  cause: error,
+                })
+            )
+          ),
+
+        /**
+         * Export model as JSON for saving
+         */
+        exportModel: () =>
+          Effect.gen(function* () {
+            const state = yield* Ref.get(stateRef);
+            return JSON.stringify(state.vectorizer.out(its.modelJSON));
+          }).pipe(
+            Effect.mapError(
+              (error) =>
+                new VectorizerError({
+                  message: "Failed to export model",
+                  cause: error,
+                })
+            )
+          ),
+
+        /**
+         * Load model from JSON
+         */
+        loadModel: (modelJson: string) =>
+          Effect.gen(function* () {
+            const model = JSON.parse(modelJson);
+            const state = yield* Ref.get(stateRef);
+            state.vectorizer.loadModel(model);
+          }).pipe(
+            Effect.mapError(
+              (error) =>
+                new VectorizerError({
+                  message: "Failed to load model",
+                  cause: error,
+                })
+            )
+          ),
+
+        /**
+         * Get current configuration
+         */
+        getConfig: () => Effect.sync(() => config),
+
+        /**
+         * Reset vectorizer (clear all learned data)
+         */
+        reset: () =>
+          Ref.set(stateRef, {
+            vectorizer: BM25Vectorizer(config),
+            documentIds: [],
+            config,
+          }).pipe(
+            Effect.mapError(
+              (error) =>
+                new VectorizerError({
+                  message: "Failed to reset vectorizer",
+                  cause: error,
+                })
+            )
+          ),
+      };
+    }),
+    dependencies: [WinkEngine.Default],
+  }
+) {}
+
+/**
+ * Live layer for WinkVectorizer
+ */
+export const WinkVectorizerLive = WinkVectorizer.Default;
+
+/**
+ * Live implementation of WinkVectorizer with custom config
+ */
+export const WinkVectorizerWithConfig = (_config?: Partial<BM25Config>) =>
+  Layer.effect(WinkVectorizer, WinkVectorizer);
 
 /**
  * Data-first convenience functions

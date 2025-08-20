@@ -4,7 +4,7 @@
  * @since 3.0.0
  */
 
-import { Effect, Layer, Chunk, Option } from "effect";
+import { Effect, Chunk, Option } from "effect";
 import type { ItemToken } from "wink-nlp";
 import { Token, TokenIndex, CharPosition } from "../Core/Token.js";
 import { Sentence, SentenceIndex } from "../Core/Sentence.js";
@@ -132,7 +132,7 @@ export class WinkTokenizer extends Effect.Service<WinkTokenizer>()(
         ): Effect.Effect<Chunk.Chunk<Token>, WinkError> =>
           Effect.gen(function* () {
             const rawTokens = yield* engine.getRawTokens(text);
-            const its = engine.getIts();
+            const its = yield* engine.its;
             return Chunk.fromIterable(rawTokens).pipe(
               Chunk.map((token, index) => convertWinkToken(token, index, its))
             );
@@ -148,7 +148,7 @@ export class WinkTokenizer extends Effect.Service<WinkTokenizer>()(
             const doc = yield* engine.getWinkDoc(text);
             const sentences = doc.sentences();
             const allTokens = yield* engine.getRawTokens(text);
-            const its = engine.getIts();
+            const its = yield* engine.its;
 
             const tokenObjects = Chunk.fromIterable(allTokens).pipe(
               Chunk.map((token, index) => convertWinkToken(token, index, its))
@@ -184,7 +184,7 @@ export class WinkTokenizer extends Effect.Service<WinkTokenizer>()(
         ): Effect.Effect<Document, WinkError> =>
           Effect.gen(function* () {
             const tokens = yield* engine.getRawTokens(text);
-            const its = engine.getIts();
+            const its = yield* engine.its;
 
             // Convert tokens
             const tokenObjects = Chunk.fromIterable(tokens).pipe(
@@ -248,151 +248,6 @@ export const WinkTokenizerLive = WinkTokenizer.Default;
 /**
  * Test layer for WinkTokenizer
  */
-export const WinkTokenizerTest = Layer.succeed(
-  WinkTokenizer,
-  WinkTokenizer.of({
-    tokenize: (text: string) =>
-      Effect.succeed(
-        Chunk.fromIterable(
-          text.split(" ").map(
-            (word, index) =>
-              new Token({
-                text: word,
-                index: TokenIndex(index),
-                start: CharPosition(index * 2),
-                end: CharPosition(index * 2 + word.length),
-                pos: Option.some("NOUN"),
-                lemma: Option.some(word.toLowerCase()),
-                stem: Option.some(word.toLowerCase()),
-                normal: Option.some(word.toLowerCase()),
-                shape: Option.none(),
-                prefix: Option.none(),
-                suffix: Option.none(),
-                case: Option.none(),
-                uniqueId: Option.none(),
-                abbrevFlag: Option.none(),
-                contractionFlag: Option.none(),
-                stopWordFlag: Option.none(),
-                negationFlag: Option.none(),
-                precedingSpaces: Option.none(),
-                tags: [],
-              })
-          )
-        )
-      ),
-    getSentences: (text: string) =>
-      Effect.succeed(
-        Chunk.of(
-          new Sentence({
-            text,
-            index: SentenceIndex(0),
-            tokens: Chunk.fromIterable(
-              text.split(" ").map((word, index) =>
-                Token({
-                  text: word,
-                  index: TokenIndex(index),
-                  start: CharPosition(index * 2),
-                  end: CharPosition(index * 2 + word.length),
-                  pos: Option.some("NOUN"),
-                  lemma: Option.some(word.toLowerCase()),
-                  stem: Option.some(word.toLowerCase()),
-                  normal: Option.some(word.toLowerCase()),
-                  shape: Option.none(),
-                  prefix: Option.none(),
-                  suffix: Option.none(),
-                  case: Option.none(),
-                  uniqueId: Option.none(),
-                  abbrevFlag: Option.none(),
-                  contractionFlag: Option.none(),
-                  stopWordFlag: Option.none(),
-                  negationFlag: Option.none(),
-                  precedingSpaces: Option.none(),
-                  tags: [],
-                })
-              )
-            ),
-            start: TokenIndex(0),
-            end: TokenIndex(text.split(" ").length - 1),
-            sentiment: Option.none(),
-            importance: Option.none(),
-            negationFlag: Option.none(),
-            markedUpText: Option.none(),
-          })
-        )
-      ),
-    tokenizeToDocument: (text: string, id?: string) =>
-      Effect.succeed(
-        Document({
-          id: DocumentId(id || `test-doc-${Date.now()}`),
-          text,
-          tokens: Chunk.fromIterable(
-            text.split(" ").map((word, index) =>
-              Token({
-                text: word,
-                index: TokenIndex(index),
-                start: CharPosition(index * 2),
-                end: CharPosition(index * 2 + word.length),
-                pos: Option.some("NOUN"),
-                lemma: Option.some(word.toLowerCase()),
-                stem: Option.some(word.toLowerCase()),
-                normal: Option.some(word.toLowerCase()),
-                shape: Option.none(),
-                prefix: Option.none(),
-                suffix: Option.none(),
-                case: Option.none(),
-                uniqueId: Option.none(),
-                abbrevFlag: Option.none(),
-                contractionFlag: Option.none(),
-                stopWordFlag: Option.none(),
-                negationFlag: Option.none(),
-                precedingSpaces: Option.none(),
-                tags: [],
-              })
-            )
-          ),
-          sentences: Chunk.of(
-            new Sentence({
-              text,
-              index: SentenceIndex(0),
-              tokens: Chunk.fromIterable(
-                text.split(" ").map((word, index) =>
-                  Token({
-                    text: word,
-                    index: TokenIndex(index),
-                    start: CharPosition(index * 2),
-                    end: CharPosition(index * 2 + word.length),
-                    pos: Option.some("NOUN"),
-                    lemma: Option.some(word.toLowerCase()),
-                    stem: Option.some(word.toLowerCase()),
-                    normal: Option.some(word.toLowerCase()),
-                    shape: Option.none(),
-                    prefix: Option.none(),
-                    suffix: Option.none(),
-                    case: Option.none(),
-                    uniqueId: Option.none(),
-                    abbrevFlag: Option.none(),
-                    contractionFlag: Option.none(),
-                    stopWordFlag: Option.none(),
-                    negationFlag: Option.none(),
-                    precedingSpaces: Option.none(),
-                    tags: [],
-                  })
-                )
-              ),
-              start: TokenIndex(0),
-              end: TokenIndex(text.split(" ").length - 1),
-              sentiment: Option.none(),
-              importance: Option.none(),
-              negationFlag: Option.none(),
-              markedUpText: Option.none(),
-            })
-          ),
-          sentiment: Option.none(),
-        })
-      ),
-    getTokenCount: (text: string) => Effect.succeed(text.split(" ").length),
-  })
-);
 
 /**
  * Data-first convenience functions

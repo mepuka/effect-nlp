@@ -5,15 +5,20 @@
  */
 
 import { Layer } from "effect";
-import { WinkEngine, WinkEngineLive, WinkEngineTest } from "./WinkEngine.js";
-import {
-  WinkTokenizer,
-  WinkTokenizerLive,
-  WinkTokenizerTest,
-} from "./WinkTokenizer.js";
+import { WinkEngine } from "./WinkEngine.js";
+import { WinkTokenizer, WinkTokenizerLive } from "./WinkTokenizer.js";
 import { WinkVectorizer, WinkVectorizerLive } from "./WinkVectorizer.js";
 import { WinkSimilarity, WinkSimilarityLive } from "./WinkSimilarity.js";
 import { WinkUtils, WinkUtilsLive } from "./WinkUtils.js";
+import { WinkPatternService, WinkPatternServiceLive } from "./WinkPattern.js";
+
+/**
+ * Live layer for WinkEngine, providing the WinkPatternService
+ */
+export const WinkEngineLive = Layer.provide(
+    WinkEngine.Default,
+    WinkPatternServiceLive
+);
 
 /**
  * Complete Wink services layer for production
@@ -21,7 +26,7 @@ import { WinkUtils, WinkUtilsLive } from "./WinkUtils.js";
  */
 export const WinkLayerLive = Layer.mergeAll(
   WinkTokenizerLive,
-  WinkVectorizerLive(),
+  WinkVectorizerLive,
   WinkSimilarityLive,
   WinkUtilsLive
 ).pipe(Layer.provideMerge(WinkEngine.Default));
@@ -31,8 +36,6 @@ export const WinkLayerLive = Layer.mergeAll(
  * Uses mock implementations for all services
  */
 export const WinkLayerTest = Layer.mergeAll(
-  WinkEngineTest,
-  WinkTokenizerTest,
   WinkUtilsLive // Utils can use live implementation in tests
 );
 
@@ -57,7 +60,7 @@ export const WinkTokenizationLive = Layer.mergeAll(
  */
 export const WinkVectorizationLive = Layer.mergeAll(
   WinkBaseLive,
-  WinkVectorizerLive(),
+  WinkVectorizerLive,
   WinkSimilarityLive
 ).pipe(Layer.provide(WinkEngine.Default));
 
@@ -76,16 +79,16 @@ export const WinkNLPLive = Layer.mergeAll(
 export {
   WinkEngine,
   WinkEngineLive,
-  WinkEngineTest,
   WinkTokenizer,
   WinkTokenizerLive,
-  WinkTokenizerTest,
   WinkVectorizer,
   WinkVectorizerLive,
   WinkSimilarity,
   WinkSimilarityLive,
   WinkUtils,
   WinkUtilsLive,
+  WinkPatternService,
+  WinkPatternServiceLive
 };
 
 /**

@@ -8,7 +8,6 @@ import { describe, it, expect } from "vitest";
 import { Effect, Chunk } from "effect";
 import {
   WinkLayerLive,
-  WinkLayerTest,
   WinkTokenizationLive,
   WinkNLPLive,
   WinkEngine,
@@ -52,23 +51,6 @@ describe("Wink Layer Architecture", () => {
     expect(result.servicesAvailable.tokenizer).toBe(true);
     expect(result.servicesAvailable.vectorizer).toBe(true);
     expect(result.servicesAvailable.utils).toBe(true);
-  });
-
-  it("should work with test layer", async () => {
-    const program = Effect.gen(function* () {
-      const tokenizer = yield* WinkTokenizer;
-      const tokens = yield* tokenizer.tokenize("test input");
-
-      return {
-        tokensLength: Chunk.size(tokens),
-      };
-    });
-
-    const result = await Effect.runPromise(
-      program.pipe(Effect.provide(WinkLayerTest))
-    );
-
-    expect(result.tokensLength).toBe(2); // "test input" splits to 2 tokens in test layer
   });
 
   it("should work with specialized layers", async () => {

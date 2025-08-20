@@ -1,13 +1,14 @@
 /**
- * WinkEngine Service
- * Effect.Service implementation for wink-nlp engine
+ * WinkEngine Service with Ref-based State Management
+ * Manages a shared wink-nlp instance using Effect Ref for proper state management
  * @since 3.0.0
  */
 
-import { Effect, Data, Layer } from "effect";
+import { Effect, Data, Context, Layer, Ref, Schema } from "effect";
 import winkNLP from "wink-nlp";
 import model from "wink-eng-lite-web-model";
 import type { ItemToken } from "wink-nlp";
+import type { Pattern } from "../Core/Pattern.js";
 
 /**
  * Wink engine error
@@ -19,12 +20,37 @@ export class WinkError extends Data.TaggedError("WinkError")<{
 }> {}
 
 /**
- * WinkEngine Service Definition
+ * Custom entity definition for wink-nlp
+ */
+export interface CustomEntityDefinition {
+  readonly name: string;
+  readonly patterns: ReadonlyArray<Schema.Schema.Type<typeof Pattern>>;
+}
+
+/**
+ * WinkEngine state containing the nlp instance and custom entities
+ */
+export interface WinkEngineState {
+  readonly nlp: any; // wink-nlp instance
+  readonly customEntities: ReadonlyArray<CustomEntityDefinition>;
+}
+
+/**
+ * Ref wrapper for WinkEngine state
+ */
+export class WinkEngineRef extends Context.Tag("effect-nlp/WinkEngineRef")<
+  WinkEngineRef,
+  Ref.Ref<WinkEngineState>
+>() {}
+
+/**
+ * WinkEngine Service Definition with Ref-based state management
  */
 export class WinkEngine extends Effect.Service<WinkEngine>()(
   "effect-nlp/WinkEngine",
   {
     effect: Effect.gen(function* () {
+      // Initialize the nlp instance
       const nlp = yield* Effect.try({
         try: () => winkNLP(model),
         catch: (error) =>
@@ -34,42 +60,64 @@ export class WinkEngine extends Effect.Service<WinkEngine>()(
           }),
       });
 
+      // Create the state ref
+      const stateRef = yield* Ref.make<WinkEngineState>({
+        nlp,
+        customEntities: [],
+      });
+
       return {
         /**
          * Get raw wink document
          * Direct access to wink-nlp document
          */
-        getDocument: (text: string) => nlp.readDoc(text),
+        getDocument: (text: string) =>
+          Effect.gen(function* () {
+            const state = yield* Ref.get(stateRef);
+            return yield* Effect.try({
+              try: () => state.nlp.readDoc(text),
+              catch: (error) =>
+                new WinkError({
+                  message: "Failed to create wink document",
+                  cause: error,
+                }),
+            });
+          }),
 
         /**
          * Get the nlp instance for accessing its helpers
          */
-        getNlpInstance: () => nlp,
+        getNlpInstance: Ref.get(stateRef).pipe(
+          Effect.map((state) => state.nlp)
+        ),
 
         /**
          * Get the its helper for token/document properties
          */
-        getIts: () => nlp.its,
+        its: Ref.get(stateRef).pipe(Effect.map((state) => state.nlp.its)),
 
         /**
          * Get the as helper for collection reducers
          */
-        getAs: () => nlp.as,
+        as: Ref.get(stateRef).pipe(Effect.map((state) => state.nlp.as)),
 
         /**
          * Get wink document as Effect for safe access
          */
         getWinkDoc: (text: string): Effect.Effect<any, WinkError> =>
-          Effect.try({
-            try: () => nlp.readDoc(text),
-            catch: (error) =>
-              new WinkError({
-                message: `Failed to create wink document from text: ${text.slice(
-                  0,
-                  50
-                )}...`,
-                cause: error,
-              }),
+          Effect.gen(function* () {
+            const state = yield* Ref.get(stateRef);
+            return yield* Effect.try({
+              try: () => state.nlp.readDoc(text),
+              catch: (error) =>
+                new WinkError({
+                  message: `Failed to create wink document from text: ${text.slice(
+                    0,
+                    50
+                  )}...`,
+                  cause: error,
+                }),
+            });
           }),
 
         /**
@@ -79,35 +127,121 @@ export class WinkEngine extends Effect.Service<WinkEngine>()(
         getRawTokens: (
           text: string
         ): Effect.Effect<ReadonlyArray<ItemToken>, WinkError> =>
-          Effect.try({
-            try: () => {
-              const doc = nlp.readDoc(text);
-              const tokens: Array<ItemToken> = [];
+          Effect.gen(function* () {
+            const state = yield* Ref.get(stateRef);
+            return yield* Effect.try({
+              try: () => {
+                const doc = state.nlp.readDoc(text);
+                const tokens: Array<ItemToken> = [];
 
-              doc.tokens().each((token: ItemToken) => {
-                tokens.push(token);
-              });
+                doc.tokens().each((token: ItemToken) => {
+                  tokens.push(token);
+                });
 
-              return tokens as ReadonlyArray<ItemToken>;
-            },
-            catch: (error) =>
-              new WinkError({
-                message: "Failed to tokenize text with wink-nlp",
-                cause: error,
-              }),
+                return tokens as ReadonlyArray<ItemToken>;
+              },
+              catch: (error) =>
+                new WinkError({
+                  message: "Failed to tokenize text with wink-nlp",
+                  cause: error,
+                }),
+            });
           }),
 
         /**
          * Get token count
          */
         getTokenCount: (text: string): Effect.Effect<number, WinkError> =>
-          Effect.try({
-            try: () => nlp.readDoc(text).tokens().length(),
-            catch: (error) =>
-              new WinkError({
-                message: "Failed to count tokens",
-                cause: error,
+          Effect.gen(function* () {
+            const state = yield* Ref.get(stateRef);
+            return yield* Effect.try({
+              try: () => state.nlp.readDoc(text).tokens().length(),
+              catch: (error) =>
+                new WinkError({
+                  message: "Failed to count tokens",
+                  cause: error,
+                }),
+            });
+          }),
+
+        /**
+         * Add custom entity definition with patterns
+         */
+        addCustomEntity: (
+          definition: CustomEntityDefinition
+        ): Effect.Effect<void, never> =>
+          Ref.update(stateRef, (state) => ({
+            ...state,
+            customEntities: [...state.customEntities, definition],
+          })),
+
+        /**
+         * Get custom entities
+         */
+        getCustomEntities: Ref.get(stateRef).pipe(
+          Effect.map((state) => state.customEntities)
+        ),
+
+        /**
+         * Learn custom entities into the nlp instance
+         */
+        learnCustomEntities: (): Effect.Effect<void, WinkError> =>
+          Effect.gen(function* () {
+            const state = yield* Ref.get(stateRef);
+
+            // Convert Pattern types to wink-nlp format
+            const winkPatterns = state.customEntities.map((entity) => ({
+              name: entity.name,
+              patterns: entity.patterns.map((pattern) => {
+                // Extract the pattern elements and convert to wink format
+                // This is a simplified conversion - actual implementation would need
+                // to handle all pattern types properly
+                return pattern.elements
+                  .map((element: any) => {
+                    // Return the value which is already in wink format like "[NOUN|VERB]"
+                    return element.value;
+                  })
+                  .join(" ");
               }),
+            }));
+
+            // Learn the patterns using wink-nlp's custom entity API
+            yield* Effect.try({
+              try: () => {
+                if (state.nlp.learnCustomEntities && winkPatterns.length > 0) {
+                  state.nlp.learnCustomEntities(winkPatterns);
+                }
+              },
+              catch: (error) =>
+                new WinkError({
+                  message: "Failed to learn custom entities",
+                  cause: error,
+                }),
+            });
+
+            yield* Effect.logInfo(
+              `Learned ${winkPatterns.length} custom entity patterns`
+            );
+          }),
+
+        /**
+         * Reset the engine to initial state
+         */
+        reset: (): Effect.Effect<void, WinkError> =>
+          Effect.gen(function* () {
+            const freshNlp = yield* Effect.try({
+              try: () => winkNLP(model),
+              catch: (error) =>
+                new WinkError({
+                  message: "Failed to initialize fresh wink-nlp instance",
+                  cause: error,
+                }),
+            });
+
+            yield* Ref.set(stateRef, {
+              nlp: freshNlp,
+              customEntities: [],
+            });
           }),
 
         /**
@@ -133,78 +267,23 @@ export class WinkEngine extends Effect.Service<WinkEngine>()(
 export const WinkEngineLive = WinkEngine.Default;
 
 /**
- * Test layer for WinkEngine
+ * Service that provides the Ref directly for advanced use cases
  */
-export const WinkEngineTest = Layer.succeed(
-  WinkEngine,
-  WinkEngine.of({
-    getDocument: (text: string) => ({
-      tokens: () => ({
-        out: () => text.split(" "),
-        each: (fn: (token: any) => void) => {
-          text.split(" ").forEach((token) =>
-            fn({
-              out: (prop?: any) => {
-                if (!prop) return token;
-                if (prop === "normal") return token.toLowerCase();
-                if (prop === "pos") return "NOUN";
-                return token;
-              },
-            })
-          );
-        },
-        length: () => text.split(" ").length,
-      }),
-      sentences: () => ({
-        out: () => [text],
-        itemAt: () => ({
-          out: (prop?: any) => {
-            if (!prop) return text;
-            if (prop === "span") return [0, text.split(" ").length - 1];
-            return text;
-          },
+export const WinkEngineRefLive = Layer.effect(
+  WinkEngineRef,
+  Effect.gen(function* () {
+    const nlp = yield* Effect.try({
+      try: () => winkNLP(model),
+      catch: (error) =>
+        new WinkError({
+          message: "Failed to initialize wink-nlp engine",
+          cause: error,
         }),
-      }),
-      out: (prop?: any) => {
-        if (!prop) return text;
-        if (prop === "sentiment") return 0;
-        return text;
-      },
-    }),
-    getNlpInstance: () => ({} as any),
-    getIts: () => ({
-      normal: "normal",
-      pos: "pos",
-      lemma: "lemma",
-      stem: "stem",
-      sentiment: "sentiment",
-      span: "span",
-      offset: "offset",
-      shape: "shape",
-      prefix: "prefix",
-      suffix: "suffix",
-      case: "case",
-      uniqueId: "uniqueId",
-      abbrevFlag: "abbrevFlag",
-      contractionFlag: "contractionFlag",
-      stopWordFlag: "stopWordFlag",
-      negationFlag: "negationFlag",
-      precedingSpaces: "precedingSpaces",
-      markedUpText: "markedUpText",
-    }),
-    getAs: () => ({} as any),
-    getWinkDoc: (text: string) => Effect.succeed({} as any),
-    getRawTokens: (text: string) =>
-      Effect.succeed(
-        text.split(" ").map((token) => ({
-          out: (prop?: any) => {
-            if (!prop) return token;
-            if (prop === "normal") return token.toLowerCase();
-            return token;
-          },
-        })) as ReadonlyArray<ItemToken>
-      ),
-    getTokenCount: (text: string) => Effect.succeed(text.split(" ").length),
-    isAvailable: () => true,
+    });
+
+    return yield* Ref.make<WinkEngineState>({
+      nlp,
+      customEntities: [],
+    });
   })
 );
