@@ -4,11 +4,11 @@
  * @since 3.0.0
  */
 
-import { Effect, Data, Context, Layer, Ref, Schema } from "effect";
+import { Effect, Data, Context, Layer, Ref, Schema, Hash, Random, Chunk, Match } from "effect";
 import winkNLP from "wink-nlp";
 import model from "wink-eng-lite-web-model";
-import type { ItemToken } from "wink-nlp";
-import type { Pattern } from "../Core/Pattern.js";
+import type { ItemToken, CustomEntityExample } from "wink-nlp";
+import { Pattern } from "../Core/Pattern.js";
 
 /**
  * Wink engine error
@@ -33,6 +33,8 @@ export interface CustomEntityDefinition {
 export interface WinkEngineState {
   readonly nlp: any; // wink-nlp instance
   readonly customEntities: ReadonlyArray<CustomEntityDefinition>;
+  readonly instanceId: string; // randomly generated instance ID
+  readonly engineHash: number; // hash of instance ID + serialized custom entities
 }
 
 /**
@@ -42,6 +44,20 @@ export class WinkEngineRef extends Context.Tag("effect-nlp/WinkEngineRef")<
   WinkEngineRef,
   Ref.Ref<WinkEngineState>
 >() {}
+
+/**
+ * Generate engine hash from instance ID and custom entities
+ */
+const generateEngineHash = (instanceId: string, customEntities: ReadonlyArray<CustomEntityDefinition>): number => {
+  const serializedData = JSON.stringify({
+    instanceId,
+    customEntities: customEntities.map(entity => ({
+      name: entity.name,
+      patterns: entity.patterns.map(pattern => JSON.stringify(pattern))
+    }))
+  });
+  return Hash.hash(serializedData);
+};
 
 /**
  * WinkEngine Service Definition with Ref-based state management
@@ -60,10 +76,17 @@ export class WinkEngine extends Effect.Service<WinkEngine>()(
           }),
       });
 
+      // Generate instance ID
+      const instanceId = yield* Random.nextIntBetween(100000, 999999).pipe(
+        Effect.map(num => `wink-engine-${num}-${Date.now()}`)
+      );
+      
       // Create the state ref
       const stateRef = yield* Ref.make<WinkEngineState>({
         nlp,
         customEntities: [],
+        instanceId,
+        engineHash: generateEngineHash(instanceId, []),
       });
 
       return {
@@ -183,6 +206,20 @@ export class WinkEngine extends Effect.Service<WinkEngine>()(
         ),
 
         /**
+         * Get instance ID
+         */
+        getInstanceId: Ref.get(stateRef).pipe(
+          Effect.map((state) => state.instanceId)
+        ),
+
+        /**
+         * Get engine hash
+         */
+        getEngineHash: Ref.get(stateRef).pipe(
+          Effect.map((state) => state.engineHash)
+        ),
+
+        /**
          * Learn custom entities into the nlp instance
          */
         learnCustomEntities: (): Effect.Effect<void, WinkError> =>
@@ -238,9 +275,16 @@ export class WinkEngine extends Effect.Service<WinkEngine>()(
                 }),
             });
 
+            // Generate new instance ID for the reset engine
+            const newInstanceId = yield* Random.nextIntBetween(100000, 999999).pipe(
+              Effect.map(num => `wink-engine-${num}-${Date.now()}`)
+            );
+
             yield* Ref.set(stateRef, {
               nlp: freshNlp,
               customEntities: [],
+              instanceId: newInstanceId,
+              engineHash: generateEngineHash(newInstanceId, []),
             });
           }),
 
@@ -281,9 +325,16 @@ export const WinkEngineRefLive = Layer.effect(
         }),
     });
 
+    // Generate instance ID for the ref layer
+    const instanceId = yield* Random.nextIntBetween(100000, 999999).pipe(
+      Effect.map(num => `wink-engine-ref-${num}-${Date.now()}`)
+    );
+
     return yield* Ref.make<WinkEngineState>({
       nlp,
       customEntities: [],
+      instanceId,
+      engineHash: generateEngineHash(instanceId, []),
     });
   })
 );

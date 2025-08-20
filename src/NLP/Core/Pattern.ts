@@ -1,4 +1,4 @@
-import { Effect, ParseResult, Schema, Data, Order } from "effect";
+import { Effect, ParseResult, Schema } from "effect";
 // ============================================================================
 // POS TAG REFERENCE
 // ============================================================================
@@ -28,6 +28,17 @@ const WinkPOSTag = Schema.Literal(
   "VERB", // Verb: Run, sing, develop
   "X", // Other: Words that cannot be assigned any POS tag
   "SPACE" // Space: \n, \t, \r (wink-nlp specific)
+).pipe(
+  Schema.annotations({
+    identifier: "effect-nlp/Pattern/WinkPOSTag",
+    title: "Wink Part-of-Speech Tag",
+    description:
+      "Universal POS tags supported by wink-nlp based on the Universal Dependencies tagset",
+    examples: ["NOUN", "VERB", "ADJ", "PROPN"],
+    jsonSchema: {
+      $comment: "POS tags used for grammatical pattern matching in wink-nlp",
+    },
+  })
 );
 
 export type WinkEntityType = Schema.Schema.Type<typeof WinkEntityType>;
@@ -45,6 +56,43 @@ export const WinkEntityType = Schema.Literal(
   "EMAIL",
   "URL",
   "MENTION"
+).pipe(
+  Schema.annotations({
+    identifier: "effect-nlp/Pattern/WinkEntityType",
+    name: "WinkEntityType",
+    title: "Wink Entity Type",
+    description: "A type of entity that can be matched by wink-nlp",
+    examples: [
+      "CARDINAL",
+      "TIME",
+      "DATE",
+      "MONEY",
+      "PERCENT",
+      "HASHTAG",
+      "EMOJI",
+      "EMOTICON",
+      "EMAIL",
+      "URL",
+      "MENTION",
+    ],
+  })
+);
+
+export type POSPatternOption = Schema.Schema.Type<typeof POSPatternOption>;
+export const POSPatternOption = Schema.Data(
+  Schema.NonEmptyArray(Schema.Union(WinkPOSTag, Schema.Literal(""))).pipe(
+    Schema.annotations({
+      identifier: "effect-nlp/Pattern/POSPatternOption",
+      title: "POS Pattern Option",
+      description:
+        "An array of POS tags that can match at a position, with empty string representing optional elements",
+      examples: [["NOUN"], ["", "DET"], ["ADJ", "NOUN"], ["PROPN", "PROPN"]],
+      jsonSchema: {
+        $comment:
+          "Array of POS tags for pattern matching; empty string means optional",
+      },
+    })
+  )
 );
 
 // ============================================================================
@@ -53,8 +101,8 @@ export const WinkEntityType = Schema.Literal(
 // literal option is a literal or series of literals separated by "|"
 // can half empty option [|DET] e.g. "empty or DET"
 
-export const POSPatternOptionFromString = Schema.transformOrFail(
-  Schema.NonEmptyArray(Schema.Union(WinkPOSTag, Schema.Literal(""))),
+export const POSPatternOptionToBracketString = Schema.transformOrFail(
+  POSPatternOption,
   Schema.NonEmptyString,
   {
     strict: true,
@@ -76,9 +124,7 @@ export const POSPatternOptionFromString = Schema.transformOrFail(
       const content = input.slice(1, -1); // Remove brackets
       const parts = content.split("|");
 
-      return Schema.decodeUnknown(
-        Schema.NonEmptyArray(Schema.Union(WinkPOSTag, Schema.Literal("")))
-      )(parts).pipe(
+      return Schema.decodeUnknown(POSPatternOption)(parts).pipe(
         Effect.flatMap((decodedParts) => {
           // Check if there are any non-empty POS tags
           const hasValidTags = decodedParts.some((tag) => tag !== "");
@@ -106,8 +152,32 @@ export const POSPatternOptionFromString = Schema.transformOrFail(
   }
 );
 
-export const EntityPatternOptionFromString = Schema.transformOrFail(
-  Schema.NonEmptyArray(Schema.Union(WinkEntityType, Schema.Literal(""))),
+export const EntityPatternOption = Schema.DataFromSelf(
+  Schema.NonEmptyArray(Schema.Union(WinkEntityType, Schema.Literal("")))
+).pipe(
+  Schema.annotations({
+    identifier: "effect-nlp/Pattern/EntityPatternOption",
+    title: "Entity Pattern Option",
+    description:
+      "An array of entity types that can match at a position, with empty string representing optional elements",
+    examples: [
+      ["CARDINAL", "TIME"],
+      ["DATE", ""],
+      ["MONEY", "PERCENT"],
+    ],
+    jsonSchema: {
+      $comment:
+        "Array of entity types for pattern matching; empty string means optional",
+    },
+  })
+);
+
+export type EntityPatternOption = Schema.Schema.Type<
+  typeof EntityPatternOption
+>;
+
+export const EntityPatternOptionToBracketString = Schema.transformOrFail(
+  EntityPatternOption,
   Schema.NonEmptyString,
   {
     strict: true,
@@ -129,9 +199,7 @@ export const EntityPatternOptionFromString = Schema.transformOrFail(
       const content = input.slice(1, -1); // Remove brackets
       const parts = content.split("|");
 
-      return Schema.decodeUnknown(
-        Schema.NonEmptyArray(Schema.Union(WinkEntityType, Schema.Literal("")))
-      )(parts).pipe(
+      return Schema.decodeUnknown(EntityPatternOption)(parts).pipe(
         Effect.flatMap((decodedParts) => {
           // Check if there are any non-empty entity types
           const hasValidTypes = decodedParts.some((type) => type !== "");
@@ -159,8 +227,29 @@ export const EntityPatternOptionFromString = Schema.transformOrFail(
   }
 );
 
-export const LiteralPatternOptionFromString = Schema.transformOrFail(
-  Schema.NonEmptyArray(Schema.Union(Schema.NonEmptyString, Schema.Literal(""))),
+export const LiteralPatternOption = Schema.DataFromSelf(
+  Schema.NonEmptyArray(Schema.Union(Schema.NonEmptyString, Schema.Literal("")))
+).pipe(
+  Schema.annotations({
+    identifier: "effect-nlp/Pattern/LiteralPatternOption",
+    title: "Literal Pattern Option",
+    description:
+      "An array of literal words that can match at a position, with empty string representing optional elements",
+    examples: [
+      ["Classic", "Supreme", "Extravaganza"],
+      ["Delivery", ""],
+      ["Corn", "Capsicum", "Onion"],
+      ["", "Small", "Medium", "Large"],
+    ],
+    jsonSchema: {
+      $comment:
+        "Array of literal words for exact matching; empty string means optional",
+    },
+  })
+);
+
+export const LiteralPatternOptionToBracketString = Schema.transformOrFail(
+  LiteralPatternOption,
   Schema.NonEmptyString,
   {
     strict: true,
@@ -182,11 +271,7 @@ export const LiteralPatternOptionFromString = Schema.transformOrFail(
       const content = input.slice(1, -1); // Remove brackets
       const parts = content.split("|");
 
-      return Schema.decodeUnknown(
-        Schema.NonEmptyArray(
-          Schema.Union(Schema.NonEmptyString, Schema.Literal(""))
-        )
-      )(parts).pipe(
+      return Schema.decodeUnknown(LiteralPatternOption)(parts).pipe(
         Effect.flatMap((decodedParts) => {
           // Check if there are any non-empty literals
           const hasValidLiterals = decodedParts.some(
@@ -220,120 +305,23 @@ export const LiteralPatternOptionFromString = Schema.transformOrFail(
 // PATTERN ELEMENT TAGGED STRUCTS
 // ============================================================================
 
-export const POSPatternElement = Schema.TaggedStruct("pos", {
-  value: POSPatternOptionFromString.pipe(
-    Schema.annotations({
-      title: "POS Pattern String",
-      description:
-        "A bracket-wrapped string containing POS tags separated by pipes",
-      examples: ["[NOUN|VERB|ADJ]", "[|DET]", "[ADJ|NOUN]", "[|ADJ|NOUN]"],
-      documentation: `
-POS pattern format: [TAG1|TAG2|...]
-- Must be wrapped in square brackets
-- Tags separated by pipe (|) character
-- Empty string (|) represents optional element
-- At least one non-empty tag required
-- Valid tags: ADJ, ADP, ADV, AUX, CCONJ, DET, INTJ, NOUN, NUM, PART, PRON, PROPN, PUNCT, SCONJ, SYM, VERB, X, SPACE
+export class POSPatternElement extends Schema.TaggedClass<POSPatternElement>(
+  "POS"
+)("POSPatternElement", {
+  value: POSPatternOption,
+}) {}
 
-Examples:
-- "[NOUN|VERB|ADJ]" - matches any of these POS tags
-- "[|DET]" - optional determiner
-- "[ADJ|NOUN]" - adjective or noun
-- "[|ADJ|NOUN]" - optional adjective followed by noun
-      `,
-    })
-  ),
-}).pipe(
-  Schema.annotations({
-    title: "POS Pattern Element",
-    description: "A pattern element representing Part-of-Speech tag options",
-    examples: [
-      { _tag: "pos", value: "[NOUN|VERB|ADJ]" },
-      { _tag: "pos", value: "[|DET]" },
-      { _tag: "pos", value: "[ADJ|NOUN]" },
-    ],
-  })
-);
+export class EntityPatternElement extends Schema.TaggedClass<EntityPatternElement>(
+  "Entity"
+)("EntityPatternElement", {
+  value: EntityPatternOption,
+}) {}
 
-export const EntityPatternElement = Schema.TaggedStruct("entity", {
-  value: EntityPatternOptionFromString.pipe(
-    Schema.annotations({
-      title: "Entity Pattern String",
-      description:
-        "A bracket-wrapped string containing entity types separated by pipes",
-      examples: [
-        "[CARDINAL|TIME]",
-        "[DATE|]",
-        "[MONEY|PERCENT]",
-        "[|CARDINAL|TIME]",
-      ],
-      documentation: `
-Entity pattern format: [TYPE1|TYPE2|...]
-- Must be wrapped in square brackets
-- Types separated by pipe (|) character
-- Empty string (|) represents optional element
-- At least one non-empty type required
-- Valid types: DATE, ORDINAL, CARDINAL, MONEY, PERCENT, TIME, DURATION, HASHTAG, EMOJI, EMOTICON, EMAIL, URL, MENTION
-
-Examples:
-- "[CARDINAL|TIME]" - matches cardinal numbers or time entities
-- "[DATE|]" - optional date entity
-- "[MONEY|PERCENT]" - money or percentage entities
-- "[|CARDINAL|TIME]" - optional cardinal followed by time
-      `,
-    })
-  ),
-}).pipe(
-  Schema.annotations({
-    title: "Entity Pattern Element",
-    description: "A pattern element representing named entity type options",
-    examples: [
-      { _tag: "entity", value: "[CARDINAL|TIME]" },
-      { _tag: "entity", value: "[DATE|]" },
-      { _tag: "entity", value: "[MONEY|PERCENT]" },
-    ],
-  })
-);
-
-export const LiteralPatternElement = Schema.TaggedStruct("literal", {
-  value: LiteralPatternOptionFromString.pipe(
-    Schema.annotations({
-      title: "Literal Pattern String",
-      description:
-        "A bracket-wrapped string containing literal words separated by pipes",
-      examples: [
-        "[Classic|Supreme|Extravaganza]",
-        "[Delivery|]",
-        "[Corn|Capsicum|Onion]",
-        "[|Small|Medium|Large]",
-      ],
-      documentation: `
-Literal pattern format: [WORD1|WORD2|...]
-- Must be wrapped in square brackets
-- Words separated by pipe (|) character
-- Empty string (|) represents optional element
-- At least one non-empty word required
-- Words are matched exactly as written (case-sensitive)
-
-Examples:
-- "[Classic|Supreme|Extravaganza]" - matches any of these pizza types
-- "[Delivery|]" - optional delivery option
-- "[Corn|Capsicum|Onion]" - matches any of these toppings
-- "[|Small|Medium|Large]" - optional size specification
-      `,
-    })
-  ),
-}).pipe(
-  Schema.annotations({
-    title: "Literal Pattern Element",
-    description: "A pattern element representing literal word options",
-    examples: [
-      { _tag: "literal", value: "[Classic|Supreme|Extravaganza]" },
-      { _tag: "literal", value: "[Delivery|]" },
-      { _tag: "literal", value: "[Corn|Capsicum|Onion]" },
-    ],
-  })
-);
+export class LiteralPatternElement extends Schema.TaggedClass<LiteralPatternElement>(
+  "Literal"
+)("LiteralPatternElement", {
+  value: LiteralPatternOption,
+}) {}
 
 // ============================================================================
 // PATTERN ELEMENT UNION TYPE
@@ -341,26 +329,22 @@ Examples:
 
 export type PatternElement = Schema.Schema.Type<typeof PatternElement>;
 export const PatternElement = Schema.Union(
-  POSPatternElement,
-  EntityPatternElement,
-  LiteralPatternElement
+  Schema.asSchema(POSPatternElement),
+  Schema.asSchema(EntityPatternElement),
+  Schema.asSchema(LiteralPatternElement)
 ).pipe(
   Schema.annotations({
+    identifier: "effect-nlp/Pattern/PatternElement",
     title: "Pattern Element",
     description:
-      "A pattern element that can be a POS tag, entity type, or literal word group",
-    examples: [
-      { _tag: "pos", value: "[NOUN|VERB|ADJ]" },
-      { _tag: "entity", value: "[CARDINAL|TIME]" },
-      { _tag: "literal", value: "[Classic|Supreme|Extravaganza]" },
-    ],
+      "A discriminated union of pattern elements (POS, Entity, or Literal) for composing extraction patterns",
     documentation: `
 Pattern elements are the building blocks of wink-nlp patterns. Each element represents
 a group of options that can match at a specific position in the text.
 
 Types:
 - pos: Part-of-Speech tags (NOUN, VERB, ADJ, etc.)
-- entity: Named entity types (CARDINAL, TIME, DATE, etc.)
+- entity: Named entity types (CARDINAL, TIME, DATE, etc.)  
 - literal: Exact word matches (Classic, Supreme, etc.)
 
 All elements use the same bracket format: [OPTION1|OPTION2|...]
@@ -369,56 +353,112 @@ Empty options (|) represent optional elements that may or may not be present.
   })
 );
 
-export const Pattern = Schema.TaggedStruct("pattern", {
-  elements: Schema.NonEmptyArray(PatternElement),
-}).pipe(
-  Schema.annotations({
-    title: "Pattern",
-    description: "A pattern representing a group of pattern elements",
-  })
-);
+type PatternId = Schema.Schema.Type<typeof PatternId>;
+const PatternId = Schema.NonEmptyString.pipe(Schema.brand("PatternId"));
 
-export type Pattern = Schema.Schema.Type<typeof Pattern>;
+export class Pattern extends Schema.TaggedClass<Pattern>("Pattern")("Pattern", {
+  id: PatternId,
+  elements: Schema.ChunkFromSelf(Schema.asSchema(PatternElement)).pipe(
+    Schema.annotations({
+      description: "Ordered sequence of pattern elements to match",
+      title: "Pattern Elements",
+      minItems: 1,
+      jsonSchema: {
+        type: "array",
+        items: true,
+        minItems: 1,
+        description: "Ordered sequence of pattern elements to match"
+      }
+    })
+  ),
+}) {}
 
 // ============================================================================
-// ENHANCED PATTERN DATA TYPES
+// PATTERN NAMESPACE
 // ============================================================================
 
 /**
- * EntityPattern - First-class pattern data object with ordering capabilities
+ * Pattern namespace with encoded/decoded types and utilities
+ * @since 1.0.0
+ * @category namespace
  */
-export const EntityPattern = Data.case<{
-  readonly id: string;
-  readonly name: string;
-  readonly pattern: Pattern;
-  readonly priority: number; // Arbitrary numeric priority (higher = first)
-  readonly weight?: number; // Optional weight for tie-breaking
-  readonly description?: string;
-  readonly tags?: ReadonlyArray<string>;
-}>();
+export namespace Pattern {
+  /**
+   * POS pattern element types
+   * @category model
+   */
+  export namespace POS {
+    export type Encoded = Schema.Schema.Encoded<typeof POSPatternElement>;
+    export type Type = Schema.Schema.Type<typeof POSPatternElement>;
 
-export type EntityPattern = ReturnType<typeof EntityPattern>;
-
-/**
- * Order instance for EntityPattern - supports arbitrary priority values
- * Primary: priority (higher first), Secondary: weight (higher first), Tertiary: name (lexical)
- */
-export const EntityPatternOrder: Order.Order<EntityPattern> = Order.make(
-  (a, b) => {
-    // Primary: priority (higher numbers first)
-    if (a.priority < b.priority) return 1;
-    if (a.priority > b.priority) return -1;
-
-    // Secondary: weight (higher numbers first, treat undefined as 0)
-    const weightA = a.weight ?? 0;
-    const weightB = b.weight ?? 0;
-    if (weightA < weightB) return 1;
-    if (weightA > weightB) return -1;
-
-    // Tertiary: name (lexical for deterministic ordering)
-    const nameComparison = a.name.localeCompare(b.name);
-    if (nameComparison < 0) return -1;
-    if (nameComparison > 0) return 1;
-    return 0;
+    export const make = POSPatternElement.make;
+    export const decode = Schema.decodeUnknown(POSPatternElement);
+    export const encode = Schema.encodeSync(POSPatternElement);
+    export const toBracketString = Schema.decodeSync(
+      POSPatternOptionToBracketString
+    );
+    export const is = Schema.is(POSPatternElement);
   }
-);
+
+  /**
+   * Entity pattern element types
+   * @category model
+   */
+  export namespace Entity {
+    export type Encoded = Schema.Schema.Encoded<typeof EntityPatternElement>;
+    export type Type = Schema.Schema.Type<typeof EntityPatternElement>;
+
+    export const make = EntityPatternElement.make;
+    export const decode = Schema.decodeUnknown(EntityPatternElement);
+    export const encode = Schema.encodeSync(EntityPatternElement);
+    export const toBracketString = Schema.decodeSync(
+      EntityPatternOptionToBracketString
+    );
+    export const is = Schema.is(EntityPatternElement);
+  }
+
+  /**
+   * Literal pattern element types
+   * @category model
+   */
+  export namespace Literal {
+    export type Encoded = Schema.Schema.Encoded<typeof LiteralPatternElement>;
+    export type Type = Schema.Schema.Type<typeof LiteralPatternElement>;
+
+    export const make = LiteralPatternElement.make;
+    export const decode = Schema.decodeUnknown(LiteralPatternElement);
+    export const encode = Schema.encodeSync(LiteralPatternElement);
+    export const is = Schema.is(LiteralPatternElement);
+    export const toBracketString = Schema.decodeSync(
+      LiteralPatternOptionToBracketString
+    );
+  }
+
+  /**
+   * Pattern element union types
+   * @category model
+   */
+  export namespace Element {
+    export type Encoded = Schema.Schema.Encoded<typeof PatternElement>;
+    export type Type = Schema.Schema.Type<typeof PatternElement>;
+
+    export const decode = Schema.decodeUnknown(PatternElement);
+    export const encode = Schema.encodeSync(PatternElement);
+    export const is = Schema.is(PatternElement);
+  }
+
+  /**
+   * Core pattern types
+   * @category model
+   */
+  // Pattern is a class, not a regular schema
+  export type Encoded = Schema.Schema.Encoded<typeof Pattern>;
+  export type Type = Pattern;
+  export type Id = Schema.Schema.Type<typeof PatternId>;
+
+  export const schema = Schema.asSchema(Pattern);
+  export const Id = PatternId.make;
+  export const decode = Schema.decodeUnknownSync(Pattern);
+  export const encode = Schema.encodeSync(Pattern);
+  export const is = Schema.is(Pattern);
+}

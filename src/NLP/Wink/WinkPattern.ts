@@ -1,68 +1,108 @@
-
-import { Schema, Effect, ReadonlyArray, Context, Layer } from "effect";
-import { EntityPattern, PatternElement } from "../Core/Pattern.js";
+import { Chunk, HashSet, Match, Schema, Data } from "effect";
+import { Pattern } from "../Core/Pattern.js";
 
 // ============================================================================
-// Wink-NLP Custom Pattern Schemas
+// Pattern Element Matcher
 // ============================================================================
 
 /**
- * Schema for a single pattern item that wink-nlp understands.
- * This is a string, which can be a literal, a POS tag like `[NOUN]`,
- * or an entity type like `[DATE]`.
+ * Simple matcher type for PatternElement to string conversion
  */
-export const WinkPatternItem = Schema.String;
-export type WinkPatternItem = Schema.Schema.Type<typeof WinkPatternItem>;
+export interface PatternElementMatcher {
+  readonly convertToString: (element: Pattern.Element.Type) => string;
+}
 
 /**
- * Schema for a wink-nlp pattern, which is an array of pattern items.
+ * Pattern matching implementation for converting PatternElement to bracket string
+ * Using correct _tag values based on the TaggedClass first argument
  */
-export const WinkPattern = Schema.TaggedStruct("WinkPattern", {
-    name: Schema.String,
-    patterns: Schema.Array(WinkPatternItem)
-});
-export type WinkPattern = Schema.Schema.Type<typeof WinkPattern>;
-
-// ============================================================================
-// Pattern Transformation Logic
-// ============================================================================
-
-const winkPatternFromPatternElement = (element: PatternElement): WinkPatternItem => {
-    switch (element._tag) {
-        case "pos":
-        case "entity":
-        case "literal":
-            return element.value;
-    }
-};
-
-const winkPatternFromEntityPattern = (entityPattern: EntityPattern): WinkPattern => {
-    const patterns = ReadonlyArray.map(entityPattern.pattern.elements, winkPatternFromPatternElement);
-    return {
-        _tag: "WinkPattern",
-        name: entityPattern.name,
-        patterns: ReadonlyArray.toArray(patterns)
-    };
-};
-
-// ============================================================================
-// WinkPattern Service
-// ============================================================================
-
-export class WinkPatternService extends Context.Tag("WinkPatternService")<
-    WinkPatternService,
-    {
-        readonly fromEntityPatterns: (
-            patterns: ReadonlyArray.NonEmptyArray<EntityPattern>
-        ) => Effect.Effect<ReadonlyArray.NonEmptyArray<WinkPattern>>;
-    }
->() {}
-
-export const WinkPatternServiceLive = Layer.succeed(
-    WinkPatternService,
-    WinkPatternService.of({
-        fromEntityPatterns: (patterns) => Effect.succeed(
-            ReadonlyArray.map(patterns, winkPatternFromEntityPattern)
-        )
-    })
+const patternElementToBracketString = Match.type<Pattern.Element.Type>().pipe(
+  Match.tag("POSPatternElement", (element) =>
+    Pattern.POS.toBracketString(element.value)
+  ),
+  Match.tag("EntityPatternElement", (element) =>
+    Pattern.Entity.toBracketString(element.value)
+  ),
+  Match.tag("LiteralPatternElement", (element) =>
+    Pattern.Literal.toBracketString(element.value)
+  ),
+  Match.exhaustive
 );
+
+export class CustomEntityExample extends Schema.Class<CustomEntityExample>(
+  "CustomEntityExample"
+)({
+  name: Schema.String,
+  patterns: Schema.Data(Schema.Array(Schema.String)).pipe(
+    Schema.annotations({
+      jsonSchema: {
+        type: "array",
+        items: { type: "string" },
+        description: "Ordered array of pattern strings for sequential matching"
+      }
+    })
+  ),
+}) {}
+
+export class WinkEngineCustomEntities extends Schema.Class<WinkEngineCustomEntities>(
+  "WinkEngineCustomEntities"
+)({
+  patterns: Schema.HashSetFromSelf(CustomEntityExample).pipe(
+    Schema.annotations({
+      jsonSchema: {
+        type: "array",
+        items: true,
+        uniqueItems: true,
+        description: "Set of custom entity examples"
+      }
+    })
+  ),
+}) {
+  static fromPatterns(
+    patterns: ReadonlyArray<Pattern.Type> | Chunk.Chunk<Pattern.Type>
+  ) {
+    const patternChunk = Chunk.isChunk(patterns)
+      ? patterns
+      : Chunk.fromIterable(patterns);
+
+    const serialized = Chunk.map(patternChunk, (pattern) => {
+      const name = pattern.id;
+      const patterns = patternElementChunksToBracketString(pattern);
+      return new CustomEntityExample({
+        name,
+        patterns: Data.array(patterns),
+      });
+    });
+
+    return new WinkEngineCustomEntities({
+      patterns: HashSet.fromIterable(Chunk.toArray(serialized)),
+    });
+  }
+}
+
+export const PatternToWinkCustomEntityExample = Schema.transform(
+  Pattern,
+  CustomEntityExample,
+  {
+    strict: true,
+    decode: (pattern) => {
+      const name = pattern.id;
+      const patterns = patternElementChunksToBracketString(pattern);
+      return new CustomEntityExample({
+        name,
+        patterns: Data.array(patterns),
+      });
+    },
+    encode: (customEntityExample) => {
+      const id = Pattern.Id(customEntityExample.name);
+      const elements = Chunk.fromIterable(customEntityExample.patterns);
+      const pattern = Pattern.decode({
+        id,
+        elements,
+      });
+      return pattern;
+    },
+  }
+);
+export const patternElementChunksToBracketString = (pattern: Pattern.Type) =>
+  Chunk.toArray(Chunk.map(pattern.elements, patternElementToBracketString));
