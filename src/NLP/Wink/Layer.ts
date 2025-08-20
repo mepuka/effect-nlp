@@ -10,15 +10,11 @@ import { WinkTokenizer, WinkTokenizerLive } from "./WinkTokenizer.js";
 import { WinkVectorizer, WinkVectorizerLive } from "./WinkVectorizer.js";
 import { WinkSimilarity, WinkSimilarityLive } from "./WinkSimilarity.js";
 import { WinkUtils, WinkUtilsLive } from "./WinkUtils.js";
-import { WinkPatternService, WinkPatternServiceLive } from "./WinkPattern.js";
 
 /**
  * Live layer for WinkEngine, providing the WinkPatternService
  */
-export const WinkEngineLive = Layer.provide(
-    WinkEngine.Default,
-    WinkPatternServiceLive
-);
+export const WinkEngineLive = Layer.provide(WinkEngine.Default, WinkUtilsLive);
 
 /**
  * Complete Wink services layer for production
@@ -78,7 +74,6 @@ export const WinkNLPLive = Layer.mergeAll(
  */
 export {
   WinkEngine,
-  WinkEngineLive,
   WinkTokenizer,
   WinkTokenizerLive,
   WinkVectorizer,
@@ -87,8 +82,6 @@ export {
   WinkSimilarityLive,
   WinkUtils,
   WinkUtilsLive,
-  WinkPatternService,
-  WinkPatternServiceLive
 };
 
 /**
