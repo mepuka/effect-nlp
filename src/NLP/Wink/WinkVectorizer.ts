@@ -226,7 +226,7 @@ export class WinkVectorizer extends Effect.Service<WinkVectorizer>()(
               Chunk.size(document.tokens) > 0
                 ? extractNormalizedTokens(document.tokens)
                 : yield* Effect.gen(function* () {
-                    const winkDoc = yield* engine.getDocument(document.text);
+                    const winkDoc = yield* engine.getWinkDoc(document.text);
                     return winkDoc.tokens().out(its.normal);
                   });
 
@@ -262,7 +262,7 @@ export class WinkVectorizer extends Effect.Service<WinkVectorizer>()(
                   Chunk.size(doc.tokens) > 0
                     ? extractNormalizedTokens(doc.tokens)
                     : yield* Effect.gen(function* () {
-                        const winkDoc = yield* engine.getDocument(doc.text);
+                        const winkDoc = yield* engine.getWinkDoc(doc.text);
                         return winkDoc.tokens().out(its.normal);
                       });
 
@@ -297,7 +297,7 @@ export class WinkVectorizer extends Effect.Service<WinkVectorizer>()(
               Chunk.size(document.tokens) > 0
                 ? extractNormalizedTokens(document.tokens)
                 : yield* Effect.gen(function* () {
-                    const winkDoc = yield* engine.getDocument(document.text);
+                    const winkDoc = yield* engine.getWinkDoc(document.text);
                     return winkDoc.tokens().out(its.normal);
                   });
 
@@ -331,7 +331,7 @@ export class WinkVectorizer extends Effect.Service<WinkVectorizer>()(
               Chunk.size(document.tokens) > 0
                 ? extractNormalizedTokens(document.tokens)
                 : yield* Effect.gen(function* () {
-                    const winkDoc = yield* engine.getDocument(document.text);
+                    const winkDoc = yield* engine.getWinkDoc(document.text);
                     return winkDoc.tokens().out(its.normal);
                   });
 
@@ -357,7 +357,7 @@ export class WinkVectorizer extends Effect.Service<WinkVectorizer>()(
         vectorizeText: (text: string, id?: string) =>
           Effect.gen(function* () {
             const state = yield* Ref.get(stateRef);
-            const winkDoc = yield* engine.getDocument(text);
+            const winkDoc = yield* engine.getWinkDoc(text);
             const tokens = winkDoc.tokens().out(its.normal);
             const vector = state.vectorizer.vectorOf(tokens);
             const terms = state.vectorizer.out(its.terms) as Array<string>;

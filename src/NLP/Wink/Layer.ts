@@ -6,6 +6,7 @@
 
 import { Layer } from "effect";
 import { WinkEngine } from "./WinkEngine.js";
+import { WinkEngineRefLive } from "./WinkEngineRef.js";
 import { WinkTokenizer, WinkTokenizerLive } from "./WinkTokenizer.js";
 import { WinkVectorizer, WinkVectorizerLive } from "./WinkVectorizer.js";
 import { WinkSimilarity, WinkSimilarityLive } from "./WinkSimilarity.js";
@@ -14,7 +15,10 @@ import { WinkUtils, WinkUtilsLive } from "./WinkUtils.js";
 /**
  * Live layer for WinkEngine, providing the WinkPatternService
  */
-export const WinkEngineLive = Layer.provide(WinkEngine.Default, WinkUtilsLive);
+export const WinkEngineLive = Layer.provide(
+  WinkEngine.Default,
+  Layer.mergeAll(WinkEngineRefLive, WinkUtilsLive)
+);
 
 /**
  * Complete Wink services layer for production
@@ -25,7 +29,9 @@ export const WinkLayerLive = Layer.mergeAll(
   WinkVectorizerLive,
   WinkSimilarityLive,
   WinkUtilsLive
-).pipe(Layer.provideMerge(WinkEngine.Default));
+).pipe(
+  Layer.provideMerge(Layer.provide(WinkEngine.Default, WinkEngineRefLive))
+);
 
 /**
  * Complete Wink services layer for testing
@@ -58,7 +64,7 @@ export const WinkVectorizationLive = Layer.mergeAll(
   WinkBaseLive,
   WinkVectorizerLive,
   WinkSimilarityLive
-).pipe(Layer.provide(WinkEngine.Default));
+).pipe(Layer.provide(Layer.provide(WinkEngine.Default, WinkEngineRefLive)));
 
 /**
  *NLP processing layer

@@ -26,7 +26,7 @@ describe("Wink Layer Architecture", () => {
       const utils = yield* WinkUtils;
 
       // Test basic functionality
-      const tokenCount = yield* engine.getTokenCount("Hello world test");
+      const tokenCount = yield* engine.getWinkTokenCount("Hello world test");
       const tokens = yield* tokenizer.tokenize("Hello world test");
 
       return {

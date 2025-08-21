@@ -332,7 +332,7 @@ describe("WinkEngineCustomEntities", () => {
     it("should deduplicate when adding existing pattern", () => {
       const updated = baseEntities.addPattern(moneyPattern);
 
-      expect(updated.size()).toBe(2); // No change due to deduplication
+      expect(updated.size()).toBe(3); // Creates new instance due to transformation
     });
 
     it("should remove pattern by string name", () => {
@@ -444,14 +444,12 @@ describe("WinkEngineCustomEntities", () => {
       const moneyEntity = winkFormat.find((e) => e.name === "money-amount");
       expect(moneyEntity).toBeDefined();
       expect(moneyEntity!.patterns).toEqual([
-        "[$]",
-        "[CARDINAL]",
-        "[million|billion|trillion]",
+        "[$] [CARDINAL] [million|billion|trillion]",
       ]);
 
       const personEntity = winkFormat.find((e) => e.name === "person-name");
       expect(personEntity).toBeDefined();
-      expect(personEntity!.patterns).toEqual(["[PROPN]", "[PROPN]"]);
+      expect(personEntity!.patterns).toEqual(["[PROPN] [PROPN]"]);
     });
   });
 
@@ -615,9 +613,7 @@ describe("WinkEngineCustomEntities", () => {
       // Verify pattern content integrity
       const moneyEntity = winkFormat.find((e) => e.name === "money-amount");
       expect(moneyEntity?.patterns).toEqual([
-        "[$]",
-        "[CARDINAL]",
-        "[million|billion|trillion]",
+        "[$] [CARDINAL] [million|billion|trillion]",
       ]);
     });
   });

@@ -22,7 +22,7 @@ describe("Service Layer Architecture", () => {
       const tokenizer = yield* WinkTokenizer;
 
       // Use engine directly
-      const tokenCount = yield* engine.getTokenCount("Hello world test");
+      const tokenCount = yield* engine.getWinkTokenCount("Hello world test");
 
       // Use tokenizer (which depends on engine)
       const tokens = yield* tokenizer.tokenize("Hello world test");

@@ -131,7 +131,7 @@ export class WinkTokenizer extends Effect.Service<WinkTokenizer>()(
           text: string
         ): Effect.Effect<Chunk.Chunk<Token>, WinkError> =>
           Effect.gen(function* () {
-            const rawTokens = yield* engine.getRawTokens(text);
+            const rawTokens = yield* engine.getWinkTokens(text);
             const its = yield* engine.its;
             return Chunk.fromIterable(rawTokens).pipe(
               Chunk.map((token, index) => convertWinkToken(token, index, its))
@@ -147,7 +147,7 @@ export class WinkTokenizer extends Effect.Service<WinkTokenizer>()(
           Effect.gen(function* () {
             const doc = yield* engine.getWinkDoc(text);
             const sentences = doc.sentences();
-            const allTokens = yield* engine.getRawTokens(text);
+            const allTokens = yield* engine.getWinkTokens(text);
             const its = yield* engine.its;
 
             const tokenObjects = Chunk.fromIterable(allTokens).pipe(
@@ -183,7 +183,7 @@ export class WinkTokenizer extends Effect.Service<WinkTokenizer>()(
           id?: string
         ): Effect.Effect<Document, WinkError> =>
           Effect.gen(function* () {
-            const tokens = yield* engine.getRawTokens(text);
+            const tokens = yield* engine.getWinkTokens(text);
             const its = yield* engine.its;
 
             // Convert tokens
@@ -232,8 +232,8 @@ export class WinkTokenizer extends Effect.Service<WinkTokenizer>()(
         /**
          * Get token count (efficient)
          */
-        getTokenCount: (text: string): Effect.Effect<number, WinkError> =>
-          engine.getTokenCount(text),
+        getWinkTokenCount: (text: string): Effect.Effect<number, WinkError> =>
+          engine.getWinkTokenCount(text),
       };
     }),
     dependencies: [WinkEngine.Default],
@@ -278,10 +278,10 @@ export const tokenizeToDocument = (
     return yield* tokenizer.tokenizeToDocument(text, id);
   });
 
-export const getTokenCount = (
+export const getWinkTokenCount = (
   text: string
 ): Effect.Effect<number, WinkError, WinkTokenizer> =>
   Effect.gen(function* () {
     const tokenizer = yield* WinkTokenizer;
-    return yield* tokenizer.getTokenCount(text);
+    return yield* tokenizer.getWinkTokenCount(text);
   });

@@ -337,14 +337,11 @@ export class WinkEngineCustomEntities
   toWinkFormat(): ReadonlyArray<{
     name: string;
     patterns: ReadonlyArray<string>;
+    mark?: [number, number];
   }> {
     return HashSet.toValues(this.patterns).map(
       (entity: CustomEntityExample) =>
-        new CustomEntityExample({
-          name: entity.name,
-          patterns: entity.patterns as ReadonlyArray<string>,
-          mark: entity.mark,
-        })
+        Schema.decodeSync(CustomEntityExampleToWinkFormat)(entity) as any
     );
   }
 
@@ -444,21 +441,60 @@ export const PatternToWinkCustomEntityExample = Schema.transform(
     decode: (pattern) => {
       const name = pattern.id;
       const patterns = patternElementChunksToBracketString(pattern);
+      const mark = Option.getOrNull(pattern.mark);
       return new CustomEntityExample({
         name,
         patterns: Data.array(patterns),
+        mark: mark === null ? undefined : mark,
       });
     },
     encode: (customEntityExample) => {
       const id = Pattern.Id(customEntityExample.name);
-      const elements = Chunk.fromIterable(customEntityExample.patterns);
-      const pattern = Pattern.decode({
+      // Parse bracket strings back to pattern elements (simplified for now)
+      // This would need a proper parser to convert bracket strings back to elements
+      const elements = Chunk.empty<Pattern.Element.Type>();
+      const mark = customEntityExample.mark;
+      return new Pattern({
         id,
         elements,
+        mark: mark ? Option.some(mark) : Option.none(),
       });
-      return pattern;
     },
   }
 );
+
+/**
+ * Schema for encoding CustomEntityExample to wink-nlp format
+ */
+export const CustomEntityExampleToWinkFormat = Schema.transform(
+  CustomEntityExample,
+  Schema.Struct({
+    name: Schema.String,
+    patterns: Schema.Array(Schema.String),
+    mark: Schema.optional(Schema.Tuple(Schema.Int, Schema.Int)),
+  }),
+  {
+    strict: false,
+    decode: (entity) => ({
+      name: entity.name,
+      // Join the bracket patterns with spaces for wink-nlp
+      patterns: [entity.patterns.join(" ")],
+      mark: entity.mark as [number, number] | undefined,
+    }),
+    encode: (winkFormat) => {
+      // Split the pattern string back into bracket components
+      const patterns =
+        winkFormat.patterns.length > 0
+          ? winkFormat.patterns[0].split(" ").filter((s) => s.length > 0)
+          : [];
+      return new CustomEntityExample({
+        name: winkFormat.name,
+        patterns: Data.array(patterns),
+        mark: winkFormat.mark,
+      });
+    },
+  }
+);
+
 export const patternElementChunksToBracketString = (pattern: Pattern.Type) =>
   Chunk.toArray(Chunk.map(pattern.elements, patternElementToBracketString));
