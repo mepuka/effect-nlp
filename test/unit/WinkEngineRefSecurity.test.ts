@@ -18,7 +18,7 @@ describe("WinkEngineRef Security and State Management", () => {
     const pattern = new Pattern({
       id: Pattern.Id(`${name}-pattern`),
       elements: Chunk.make(
-        LiteralPatternElement.make({ value: Data.array(literals as any) })
+        LiteralPatternElement.make({ value: Data.array(literals) as any })
       ),
     });
     return WinkEngineCustomEntities.fromPatterns(name, [pattern]);
@@ -277,7 +277,7 @@ describe("WinkEngineRef Security and State Management", () => {
         const newState = yield* Ref.get(refService.getRef());
         const newNlp = newState.nlp;
 
-        // Should reuse the same nlp instance for memory efficiency  
+        // Should reuse the same nlp instance for memory efficiency
         expect(newNlp).toBe(initialNlp);
 
         // Both nlp references point to the same instance with updated entities
