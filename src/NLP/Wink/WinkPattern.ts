@@ -7,9 +7,10 @@ import {
   Hash,
   Equal,
   Equivalence,
-  Pipeable,
+  Option,
+  type Pipeable,
 } from "effect";
-import { Pattern } from "../Core/Pattern.js";
+import { Pattern, MarkRange } from "../Core/Pattern.js";
 
 // ============================================================================
 // Branded Types
@@ -69,6 +70,7 @@ export class CustomEntityExample extends Schema.Class<CustomEntityExample>(
       },
     })
   ),
+  mark: Schema.optional(MarkRange),
 }) {}
 
 export class WinkEngineCustomEntities
@@ -337,10 +339,12 @@ export class WinkEngineCustomEntities
     patterns: ReadonlyArray<string>;
   }> {
     return HashSet.toValues(this.patterns).map(
-      (entity: CustomEntityExample) => ({
-        name: entity.name,
-        patterns: entity.patterns as ReadonlyArray<string>,
-      })
+      (entity: CustomEntityExample) =>
+        new CustomEntityExample({
+          name: entity.name,
+          patterns: entity.patterns as ReadonlyArray<string>,
+          mark: entity.mark,
+        })
     );
   }
 
@@ -406,6 +410,30 @@ export class WinkEngineCustomEntities
         patterns: filteredPatterns,
       });
     };
+
+  /**
+   * Add a pattern with mark functionality
+   * Returns new instance with the pattern added with specified mark range
+   */
+  addPatternWithMark(
+    pattern: Pattern.Type,
+    mark: MarkRange
+  ): WinkEngineCustomEntities {
+    const markedPattern = new Pattern({
+      ...pattern,
+      mark: Option.some(mark),
+    });
+    return this.addPattern(markedPattern);
+  }
+
+  /**
+   * Data-first add pattern with mark operation
+   * Usage: pipe(entities, WinkEngineCustomEntities.addingPatternWithMark(pattern, mark))
+   */
+  static addingPatternWithMark =
+    (pattern: Pattern.Type, mark: MarkRange) =>
+    (self: WinkEngineCustomEntities) =>
+      self.addPatternWithMark(pattern, mark);
 }
 
 export const PatternToWinkCustomEntityExample = Schema.transform(

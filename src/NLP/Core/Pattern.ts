@@ -1,4 +1,4 @@
-import { Effect, ParseResult, Schema } from "effect";
+import { Option, Effect, ParseResult, Schema } from "effect";
 // ============================================================================
 // POS TAG REFERENCE
 // ============================================================================
@@ -356,6 +356,37 @@ Empty options (|) represent optional elements that may or may not be present.
 type PatternId = Schema.Schema.Type<typeof PatternId>;
 const PatternId = Schema.NonEmptyString.pipe(Schema.brand("PatternId"));
 
+// ============================================================================
+// MARK RANGE TYPE
+// ============================================================================
+
+/**
+ * Mark range for selective token extraction from pattern matches
+ * [start, end] indices relative to the pattern match (0-based)
+ * Supports negative indices for counting from end
+ */
+export type MarkRange = Schema.Schema.Type<typeof MarkRange>;
+export const MarkRange = Schema.Tuple(Schema.Int, Schema.Int).pipe(
+  Schema.annotations({
+    identifier: "effect-nlp/Pattern/MarkRange",
+    title: "Mark Range",
+    description:
+      "Token range specification for selective extraction [start, end]",
+    examples: [
+      [0, 0],
+      [1, 2],
+      [-2, -1],
+    ],
+    jsonSchema: {
+      type: "array",
+      items: { type: "integer" },
+      minItems: 2,
+      maxItems: 2,
+      description: "Two-element array specifying start and end token indices",
+    },
+  })
+);
+
 export class Pattern extends Schema.TaggedClass<Pattern>("Pattern")("Pattern", {
   id: PatternId,
   elements: Schema.ChunkFromSelf(Schema.asSchema(PatternElement)).pipe(
@@ -367,9 +398,13 @@ export class Pattern extends Schema.TaggedClass<Pattern>("Pattern")("Pattern", {
         type: "array",
         items: true,
         minItems: 1,
-        description: "Ordered sequence of pattern elements to match"
-      }
+        description: "Ordered sequence of pattern elements to match",
+      },
     })
+  ),
+  mark: Schema.Option(MarkRange).pipe(
+    Schema.propertySignature,
+    Schema.withConstructorDefault(() => Option.none())
   ),
 }) {}
 

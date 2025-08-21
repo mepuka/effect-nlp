@@ -4,11 +4,22 @@
  * @since 3.0.0
  */
 
-import { Effect, Data, Context, Layer, Ref, Schema, Hash, Random, Chunk, Match } from "effect";
+import {
+  Effect,
+  Data,
+  Context,
+  Layer,
+  Ref,
+  Schema,
+  Hash,
+  Random,
+  Chunk,
+  Match,
+} from "effect";
 import winkNLP from "wink-nlp";
 import model from "wink-eng-lite-web-model";
 import type { ItemToken, CustomEntityExample } from "wink-nlp";
-import { Pattern } from "../Core/Pattern.js";
+import { Pattern, PatternElement } from "../Core/Pattern.js";
 
 /**
  * Wink engine error
@@ -48,13 +59,16 @@ export class WinkEngineRef extends Context.Tag("effect-nlp/WinkEngineRef")<
 /**
  * Generate engine hash from instance ID and custom entities
  */
-const generateEngineHash = (instanceId: string, customEntities: ReadonlyArray<CustomEntityDefinition>): number => {
+const generateEngineHash = (
+  instanceId: string,
+  customEntities: ReadonlyArray<CustomEntityDefinition>
+): number => {
   const serializedData = JSON.stringify({
     instanceId,
-    customEntities: customEntities.map(entity => ({
+    customEntities: customEntities.map((entity) => ({
       name: entity.name,
-      patterns: entity.patterns.map(pattern => JSON.stringify(pattern))
-    }))
+      patterns: entity.patterns.map((pattern) => JSON.stringify(pattern)),
+    })),
   });
   return Hash.hash(serializedData);
 };
@@ -78,9 +92,9 @@ export class WinkEngine extends Effect.Service<WinkEngine>()(
 
       // Generate instance ID
       const instanceId = yield* Random.nextIntBetween(100000, 999999).pipe(
-        Effect.map(num => `wink-engine-${num}-${Date.now()}`)
+        Effect.map((num) => `wink-engine-${num}-${Date.now()}`)
       );
-      
+
       // Create the state ref
       const stateRef = yield* Ref.make<WinkEngineState>({
         nlp,
@@ -234,9 +248,9 @@ export class WinkEngine extends Effect.Service<WinkEngine>()(
                 // This is a simplified conversion - actual implementation would need
                 // to handle all pattern types properly
                 return pattern.elements
-                  .map((element: any) => {
+                  .map((element: PatternElement) => {
                     // Return the value which is already in wink format like "[NOUN|VERB]"
-                    return element.value;
+                    return element.value.toString();
                   })
                   .join(" ");
               }),
@@ -276,9 +290,10 @@ export class WinkEngine extends Effect.Service<WinkEngine>()(
             });
 
             // Generate new instance ID for the reset engine
-            const newInstanceId = yield* Random.nextIntBetween(100000, 999999).pipe(
-              Effect.map(num => `wink-engine-${num}-${Date.now()}`)
-            );
+            const newInstanceId = yield* Random.nextIntBetween(
+              100000,
+              999999
+            ).pipe(Effect.map((num) => `wink-engine-${num}-${Date.now()}`));
 
             yield* Ref.set(stateRef, {
               nlp: freshNlp,
@@ -327,7 +342,7 @@ export const WinkEngineRefLive = Layer.effect(
 
     // Generate instance ID for the ref layer
     const instanceId = yield* Random.nextIntBetween(100000, 999999).pipe(
-      Effect.map(num => `wink-engine-ref-${num}-${Date.now()}`)
+      Effect.map((num) => `wink-engine-ref-${num}-${Date.now()}`)
     );
 
     return yield* Ref.make<WinkEngineState>({
