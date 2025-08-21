@@ -12,3 +12,13 @@ export * from "./Sentence.js";
 
 // Document types and helpers
 export * from "./Document.js";
+
+// Pattern types and helpers
+export * from "./Pattern.js";
+
+// Pattern parsers and transforms
+export * from "./PatternParsers.js";
+
+// Pattern builders and utilities
+export * from "./PatternBuilders.js";
+export * from "./PatternOperations.js";
