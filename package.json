@@ -35,6 +35,7 @@
   "dependencies": {
     "@effect/ai": "latest",
     "@effect/platform": "latest",
+    "@effect/printer": "^0.45.0",
     "compromise": "^14.14.4",
     "compromise-dates": "^3.7.1",
     "effect": "latest",
