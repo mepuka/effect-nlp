@@ -19,6 +19,9 @@ importers:
       '@effect/platform':
         specifier: latest
         version: 0.90.2(effect@3.17.7)
+      '@effect/printer':
+        specifier: ^0.45.0
+        version: 0.45.0(@effect/typeclass@0.36.0(effect@3.17.7))(effect@3.17.7)
       compromise:
         specifier: ^14.14.4
         version: 14.14.4
@@ -40,9 +43,6 @@ importers:
       wink-nlp:
         specifier: ^2.4.0
         version: 2.4.0
-      wink-nlp-utils:
-        specifier: ^2.1.0
-        version: 2.1.0
       wink-regression-tree:
         specifier: ^2.0.0
         version: 2.0.0
@@ -264,11 +264,22 @@ packages:
     peerDependencies:
       effect: ^3.17.7
 
+  '@effect/printer@0.45.0':
+    resolution: {integrity: sha512-UpFBH2JKAgakSWpue6yKkIAXMq+3md/CPb9s/NGl28vDu1P33cvDeeDL/1EOzFk8WqhIs3oKwPMDnd3jUhjzdg==}
+    peerDependencies:
+      '@effect/typeclass': ^0.36.0
+      effect: ^3.17.0
+
   '@effect/rpc@0.68.4':
     resolution: {integrity: sha512-iFGqBtZjjatNWwgDCCajYZvQSHc55XyZEdmHGqrKS6UfdRsV7qUSPgnplMf++tIIyGme7IbAjD/3VJdbHI5Gzg==}
     peerDependencies:
       '@effect/platform': ^0.90.2
       effect: ^3.17.7
+
+  '@effect/typeclass@0.36.0':
+    resolution: {integrity: sha512-+8xYvX4tjD7gKwGYzOyFh90I+ptdXzoNHLQTSa8kGh/xOVZMIGYb0VgLoNHE02UsuVrB+JJJuBmKLdd5TeDTPg==}
+    peerDependencies:
+      effect: ^3.17.0
 
   '@effect/vitest@0.25.0':
     resolution: {integrity: sha512-FpOKYdhe3LaOoYn0cm5W9cD9bk2qwr2A+ujMhiDVxN7MMgndFsOd8uxcWjZRX6tWjzU2aKvZXFKGEp93GAmXug==}
@@ -2524,18 +2535,12 @@ packages:
     engines: {node: '>=8'}
     hasBin: true
 
-  wink-distance@2.0.2:
-    resolution: {integrity: sha512-pyEhUB/OKFYcgOC4J6E+c+gwVA/8qg2s5n49mIcUsJZM5iDSa17uOxRQXR4rvfp+gbj55K/I08FwjFBwb6fq3g==}
-
   wink-eng-lite-web-model@1.8.1:
     resolution: {integrity: sha512-M2tSOU/rVNkDj8AS8IoKJaM7apJJjS0cN+hE8CPazfnB4A/ojyc9+7RMPk18UOiIdSyWk7MR6w8z9lWix2l5tA==}
     engines: {node: '>=16.0.0'}
 
   wink-helpers@2.0.0:
     resolution: {integrity: sha512-I/ZzXrHcNRXuoeFJmp2vMVqDI6UCK02Tds1WP4kSGAmx520gjL1BObVzF7d2ps24tyHIly9ngdB2jwhlFUjPvg==}
-
-  wink-jaro-distance@2.0.0:
-    resolution: {integrity: sha512-9bcUaXCi9N8iYpGWbFkf83OsBkg17r4hEyxusEzl+nnReLRPqxhB9YNeRn3g54SYnVRNXP029lY3HDsbdxTAuA==}
 
   wink-lemmatizer@3.0.4:
     resolution: {integrity: sha512-EdLJfy1xLF2ze2cp9Z3qiEWjiq+V8ZVRWiWooCXTXR0AyPxY8ezm4E0puJ0yIj5szzED9tcXV2U7RboaGvboFw==}
@@ -2545,9 +2550,6 @@ packages:
 
   wink-naive-bayes-text-classifier@2.2.1:
     resolution: {integrity: sha512-HaysOmwofNyE40RjAG7UiURKQ0r4cPKyywlMiI4H3i/R2aL4tzGQAY5UzLxp9gy/+Doy+064uCkEGrbkK17g4g==}
-
-  wink-nlp-utils@2.1.0:
-    resolution: {integrity: sha512-b7PcRhEBNxQmsmht70jLOkwYUyie3da4/cgEXL+CumYO5b/nwV+W7fuMXToh5BtGq1RABznmc2TGTp1Qf/JUXg==}
 
   wink-nlp@1.14.3:
     resolution: {integrity: sha512-lvY5iCs3T8I34F8WKS70+2P0U9dWLn3vdPf/Z+m2VK14N7OmqnPzmHfh3moHdusajoQ37Em39z0IZB9K4x/96A==}
@@ -2560,9 +2562,6 @@ packages:
 
   wink-regression-tree@2.0.0:
     resolution: {integrity: sha512-cL3ULkr0kBgrCJZadFahTtzAUbPzvOUh+co8dVFlZapPmr3grZD6Ew8bfl7JY6xKsHt0B8l1k0seSjkzDXJXJQ==}
-
-  wink-tokenizer@5.3.0:
-    resolution: {integrity: sha512-O/yAw0g3FmSgeeQuYAJJfP7fVPB4A6ay0018qASh79aWmIOyPYy4j4r9EQT8xBjicja6lCLvgRVAybmEBaATQA==}
 
   word-wrap@1.2.5:
     resolution: {integrity: sha512-BN22B5eaMMI9UMtjrGd5g5eCYPpCPDUy0FJXbYsaT5zYxjFOckS53SQDE3pWkVoWpHXVb3BrYcEN4Twa55B5cA==}
@@ -2764,9 +2763,18 @@ snapshots:
       msgpackr: 1.11.5
       multipasta: 0.2.7
 
+  '@effect/printer@0.45.0(@effect/typeclass@0.36.0(effect@3.17.7))(effect@3.17.7)':
+    dependencies:
+      '@effect/typeclass': 0.36.0(effect@3.17.7)
+      effect: 3.17.7
+
   '@effect/rpc@0.68.4(@effect/platform@0.90.2(effect@3.17.7))(effect@3.17.7)':
     dependencies:
       '@effect/platform': 0.90.2(effect@3.17.7)
+      effect: 3.17.7
+
+  '@effect/typeclass@0.36.0(effect@3.17.7)':
+    dependencies:
       effect: 3.17.7
 
   '@effect/vitest@0.25.0(effect@3.17.7)(vitest@3.2.4(@types/node@22.17.1)(tsx@4.20.3))':
@@ -5197,16 +5205,9 @@ snapshots:
       siginfo: 2.0.0
       stackback: 0.0.2
 
-  wink-distance@2.0.2:
-    dependencies:
-      wink-helpers: 2.0.0
-      wink-jaro-distance: 2.0.0
-
   wink-eng-lite-web-model@1.8.1: {}
 
   wink-helpers@2.0.0: {}
-
-  wink-jaro-distance@2.0.0: {}
 
   wink-lemmatizer@3.0.4:
     dependencies:
@@ -5221,15 +5222,6 @@ snapshots:
       wink-helpers: 2.0.0
       wink-nlp: 1.14.3
 
-  wink-nlp-utils@2.1.0:
-    dependencies:
-      wink-distance: 2.0.2
-      wink-eng-lite-web-model: 1.8.1
-      wink-helpers: 2.0.0
-      wink-nlp: 1.14.3
-      wink-porter2-stemmer: 2.0.1
-      wink-tokenizer: 5.3.0
-
   wink-nlp@1.14.3: {}
 
   wink-nlp@2.4.0: {}
@@ -5239,10 +5231,6 @@ snapshots:
   wink-regression-tree@2.0.0:
     dependencies:
       wink-helpers: 2.0.0
-
-  wink-tokenizer@5.3.0:
-    dependencies:
-      emoji-regex: 9.2.2
 
   word-wrap@1.2.5: {}
 
