@@ -51,9 +51,15 @@ const debugASTTraversal = Effect.gen(function* (_) {
     console.log(`Child ${index + 1}:`);
     console.log(`  Path: ${child.path.join(".")}`);
     console.log(
-      `  Role: ${Option.getOrElse(child.context.annotations.role, () => ({ role: "" })).role}`
+      `  Role: ${
+        Option.getOrElse(child.context.annotations.role, () => ({ role: "" })).role
+      }`
     );
-    console.log(`  Type: ${child.context.semanticType}`);
+    console.log(
+      `  Type: ${
+        Option.getOrElse(child.context.semanticType, () => "unknown")
+      }`
+    );
     console.log("");
   });
 
@@ -64,7 +70,9 @@ const debugASTTraversal = Effect.gen(function* (_) {
   // Log all paths in path map
   yield* _(Console.log("\nPaths in path map:"));
   tree.pathMap.forEach((node, path) => {
-    console.log(`  ${path} -> ${node.context.semanticType}`);
+    console.log(`  ${path} -> ${
+      Option.getOrElse(node.context.semanticType, () => "unknown")
+    }`);
   });
 
   yield* _(Console.log("\n=== Debug completed ==="));

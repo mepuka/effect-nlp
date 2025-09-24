@@ -174,7 +174,9 @@ const testCorrectedASTTraversal = Effect.gen(function* (_) {
   );
   yield* _(
     Console.log(
-      `Root semantic type: ${Option.getOrNull(tree.root.context.semanticType)}`
+      `Root semantic type: ${
+        Option.getOrElse(tree.root.context.semanticType, () => "unknown")
+      }`
     )
   );
   yield* _(Console.log(`Root children count: ${tree.root.children.length}`));
@@ -184,8 +186,8 @@ const testCorrectedASTTraversal = Effect.gen(function* (_) {
   yield* _(Console.log("=== TREE STRUCTURE ==="));
   tree.root.children.forEach((child, index) => {
     const childId = Option.getOrNull(child.context.identifier);
-    const childRole = Option.getOrNull(child.context.role);
-    const childType = Option.getOrNull(child.context.semanticType);
+    const childRole = Option.getOrNull(child.context.annotations.role);
+    const childType = Option.getOrElse(child.context.semanticType, () => "unknown");
     console.log(
       `${index + 1}. ${child.path.join(".")} - ${
         childId || "unnamed"
@@ -194,8 +196,8 @@ const testCorrectedASTTraversal = Effect.gen(function* (_) {
 
     // Show nested children
     child.children.forEach((grandchild, gIndex) => {
-      const gcType = Option.getOrNull(grandchild.context.semanticType);
-      const gcRole = Option.getOrNull(grandchild.context.role);
+      const gcType = Option.getOrElse(grandchild.context.semanticType, () => "unknown");
+      const gcRole = Option.getOrNull(grandchild.context.annotations.role);
       console.log(
         `   ${gIndex + 1}. ${grandchild.path.join(".")} - ${gcType} [${gcRole}]`
       );
@@ -210,9 +212,17 @@ const testCorrectedASTTraversal = Effect.gen(function* (_) {
     onNone: () => console.log("CEO context not found"),
     onSome: (context) => {
       console.log("CEO Context:");
-      console.log(`  Identifier: ${Option.getOrNull(context.identifier)}`);
-      console.log(`  Role: ${Option.getOrNull(context.role)}`);
-      console.log(`  Semantic Type: ${Option.getOrNull(context.semanticType)}`);
+      console.log(
+        `  Identifier: ${Option.getOrNull(context.identifier) ?? ""}`
+      );
+      console.log(
+        `  Role: ${
+          Option.getOrNull(context.annotations.role)?.role ?? ""
+        }`
+      );
+      console.log(
+        `  Semantic Type: ${Option.getOrElse(context.semanticType, () => "")}`
+      );
       console.log(`  Description: ${Option.getOrNull(context.description)}`);
     },
   });

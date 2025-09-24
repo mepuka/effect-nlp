@@ -60,3 +60,26 @@ const metadata = Annotations.getContext(ArticleSchema.ast.annotations);
 
 These helpers guarantee consistent annotation shapes that can be consumed by
 prompt builders and extraction pipelines.
+
+## Schema AST Traversal
+
+Build immutable, typed AST trees for schema inspection:
+
+```ts
+import { Option } from "effect";
+import { buildSchemaASTTree } from "effect-nlp/Extraction/ASTTraverse";
+
+const tree = await buildSchemaASTTree(articleEntity);
+const titles = tree.root.children.map((child) =>
+  Option.getOrElse(
+    Option.flatMap(child.context.annotations.core, (core) =>
+      Option.fromNullable(core.title)
+    ),
+    () => ""
+  )
+);
+```
+
+Nodes expose typed annotation context (core/role/semantic/provenance) alongside
+entity identifiers, enabling deterministic prompt construction and graph
+operations.

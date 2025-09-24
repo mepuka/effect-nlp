@@ -2,7 +2,7 @@
  * Functional Annotation Parser Test - Using Effect's built-in types and Doc interface
  */
 
-import { Schema, Effect, pipe, Console, SchemaAST, HashMap } from "effect";
+import { Schema, Effect, pipe, Console, SchemaAST, HashMap, Option } from "effect";
 import { Doc } from "@effect/printer";
 import {
   extractSchemaContext,
@@ -177,16 +177,31 @@ const testFunctionalAnnotationParser = Effect.gen(function* () {
   // Test 1: Extract schema context
   yield* Console.log("1. Schema Context Extraction:");
   const context = extractSchemaContext(annotations);
+  const format = <A>(option: Option.Option<A>, toString: (value: A) => string = String) =>
+    Option.match(option, {
+      onNone: () => "None",
+      onSome: (value) => toString(value),
+    });
+
   yield* Effect.all([
     Console.log("Context:"),
-    Console.log(`  Identifier: ${context.identifier}`),
-    Console.log(`  Title: ${context.title}`),
-    Console.log(`  Description: ${context.description}`),
-    Console.log(`  Documentation: ${context.documentation}`),
-    Console.log(`  Semantic Type: ${context.semanticType}`),
-    Console.log(`  Role: ${context.role}`),
-    Console.log(`  Examples: ${context.examples.toString()}`),
-    Console.log(`  Default: ${context.default}`),
+    Console.log(`  Identifier: ${format(context.identifier)}`),
+    Console.log(`  Title: ${format(context.title)}`),
+    Console.log(`  Description: ${format(context.description)}`),
+    Console.log(`  Documentation: ${format(context.documentation)}`),
+    Console.log(
+      `  Semantic Type: ${format(
+        context.semantic,
+        (semantic) => semantic.semanticType
+      )}`
+    ),
+    Console.log(`  Role: ${format(context.role, (role) => role.role)}`),
+    Console.log(
+      `  Examples: ${format(context.examples, (examples) => JSON.stringify(examples))}`
+    ),
+    Console.log(
+      `  Default: ${format(context.default, (value) => JSON.stringify(value))}`
+    ),
     Console.log(`  Metadata size: ${HashMap.size(context.metadata)}`),
   ]);
   yield* Console.log("");
