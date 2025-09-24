@@ -63,26 +63,19 @@ export namespace Document {
   /**
    * Get token count - dual API (data-first and data-last)
    */
-  export const tokenCount = Function.dual<
-    (self: Document) => number,
-    (doc: Document) => number
-  >(1, (doc: Document): number => Chunk.size(doc.tokens));
+  export const tokenCount = (doc: Document): number =>
+    Chunk.size(doc.tokens);
 
   /**
    * Get sentence count - dual API (data-first and data-last)
    */
-  export const sentenceCount = Function.dual<
-    (self: Document) => number,
-    (doc: Document) => number
-  >(1, (doc: Document): number => Chunk.size(doc.sentences));
+  export const sentenceCount = (doc: Document): number =>
+    Chunk.size(doc.sentences);
 
   /**
    * Get character count - dual API (data-first and data-last)
    */
-  export const characterCount = Function.dual<
-    (self: Document) => number,
-    (doc: Document) => number
-  >(1, (doc: Document): number => doc.text.length);
+  export const characterCount = (doc: Document): number => doc.text.length;
 
   /**
    * Get tokens by character range - dual API (data-first and data-last)
@@ -201,26 +194,14 @@ export namespace Document {
   /**
    * Get all token texts - dual API (data-first and data-last)
    */
-  export const tokenTexts = Function.dual<
-    (self: Document) => Chunk.Chunk<string>,
-    (doc: Document) => Chunk.Chunk<string>
-  >(
-    1,
-    (doc: Document): Chunk.Chunk<string> =>
-      Chunk.map(doc.tokens, (token) => token.text)
-  );
+  export const tokenTexts = (doc: Document): Chunk.Chunk<string> =>
+    Chunk.map(doc.tokens, (token) => token.text);
 
   /**
    * Get all sentence texts - dual API (data-first and data-last)
    */
-  export const sentenceTexts = Function.dual<
-    (self: Document) => Chunk.Chunk<string>,
-    (doc: Document) => Chunk.Chunk<string>
-  >(
-    1,
-    (doc: Document): Chunk.Chunk<string> =>
-      Chunk.map(doc.sentences, (sentence) => sentence.text)
-  );
+  export const sentenceTexts = (doc: Document): Chunk.Chunk<string> =>
+    Chunk.map(doc.sentences, (sentence) => sentence.text);
 }
 
 /**

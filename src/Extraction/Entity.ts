@@ -1,5 +1,12 @@
-import { Array, Schema, SchemaAST, HashSet, Hash } from "effect";
+// ============================================================================
+// IMPORTS
+// ============================================================================
+import { Array, Schema, SchemaAST, HashSet, Hash, Option } from "effect";
 import { randomUUID } from "node:crypto";
+
+// ============================================================================
+// BRANDED TYPES
+// ============================================================================
 
 /**
  * Branded types for Entity identification
@@ -19,37 +26,117 @@ export const EntityFieldId = Schema.TemplateLiteral(
   EntityId
 );
 
+// ============================================================================
+// ANNOTATIONS
+// ============================================================================
+
+// Create unique symbols for Entity identification
+export const EntityIdAnnotationId = Symbol.for("EntityIdAnnotation");
+export const EntityFieldIdAnnotationId = Symbol.for("EntityFieldIdAnnotation");
+export const ParentEntityIdAnnotationId = Symbol.for(
+  "ParentEntityIdAnnotation"
+);
+
+/**
+ * Key insight:
+ * 1. Annotations allow for the semantic meta annotation of schemas representing
+ * the layer between schema as an algebraic data type and the semantic meaning and relationships e.g.
+ * I can define a Person schema, that schema may be re used in other contexts but from the AST
+ * and store I can determine what it means *in that context* furthermore
+ *
+ * i can track modifications to the schema and store the history of the schema in semantic terms
+ *
+ * e.g. we added a field to the schema, we can track that in semantic terms like if we have a person schema
+ *
+ * wwe could add another field (extend) for say professional liscence this new schema would hold a reference
+ * to the old schema thus prompt atoms could be created describing "professional lisccence schema is a person with a professional liscence"
+ *
+ *
+ */
+
+// Type-safe annotation interface
+export interface EntityAnnotations {
+  readonly [EntityIdAnnotationId]: EntityId;
+  readonly [EntityFieldIdAnnotationId]: EntityFieldId;
+  readonly [ParentEntityIdAnnotationId]: EntityId;
+  readonly [SchemaAST.IdentifierAnnotationId]: EntityId;
+  readonly [SchemaAST.DescriptionAnnotationId]: string;
+}
+
+// ============================================================================
+// HELPER FUNCTIONS USING getAnnotation
+// ============================================================================
+
+/**
+ * Get entity ID from an annotated schema using type-safe annotation access
+ */
+export const getEntityIdFromAnnotations = (
+  annotated: SchemaAST.Annotated
+): Option.Option<EntityId> =>
+  SchemaAST.getAnnotation<EntityId>(EntityIdAnnotationId)(annotated);
+
+/**
+ * Get entity field ID from an annotated schema using type-safe annotation access
+ */
+export const getEntityFieldIdFromAnnotations = (
+  annotated: SchemaAST.Annotated
+): Option.Option<EntityFieldId> =>
+  SchemaAST.getAnnotation<EntityFieldId>(EntityFieldIdAnnotationId)(annotated);
+
+/**
+ * Get parent entity ID from an annotated schema using type-safe annotation access
+ */
+export const getParentEntityIdFromAnnotations = (
+  annotated: SchemaAST.Annotated
+): Option.Option<EntityId> =>
+  SchemaAST.getAnnotation<EntityId>(ParentEntityIdAnnotationId)(annotated);
+
+// ============================================================================
+// ID GENERATION FUNCTIONS
+// ============================================================================
+
 export const MakeEntityId = () => EntityId.make(`entity##${randomUUID()}`);
 export const MakeSchemaId = (name: string) =>
   SchemaId.make(`schema-${name}-${Date.now()}`);
 
-// Create a unique symbol for Entity identification
-const EntityTypeAnnotationId = Symbol.for("Entity/Type");
+// ============================================================================
+// TYPE GUARDS
+// ============================================================================
 
-const EntityFieldAnnotationId = Symbol.for("Entity/Field");
-
-// Type-safe annotation interface
-export interface EntityAnnotations {
-  // Custom Entity annotation
-  readonly [EntityTypeAnnotationId]: EntityId;
-  readonly [SchemaAST.IdentifierAnnotationId]: EntityId;
-  readonly [EntityFieldAnnotationId]: EntityFieldId;
-}
-
-const isEntityId = (id: string): id is EntityId => {
+export const isEntityId = (id: string): id is EntityId => {
   return id.startsWith("entity##");
 };
 
-// EntitySchemaError removed as it's not currently used
+/**
+ * Type guard to check if an AST node is an entity field
+ * Note: This checks AST node annotations, but entity field annotations are typically on property signatures
+ */
+export const isEntityField = (ast: SchemaAST.AST): boolean => {
+  const entityFieldAnnotation = ast.annotations[EntityFieldIdAnnotationId];
+  return (
+    entityFieldAnnotation !== undefined &&
+    typeof entityFieldAnnotation === "string" &&
+    entityFieldAnnotation.startsWith("field##")
+  );
+};
 
 /**
- * Entity interface
+ * Type guard to check if a property signature has entity field annotation
  */
-export type Entity<
-  A extends Readonly<Record<string, unknown>> | ReadonlyArray<unknown>,
-  I extends Readonly<Record<string, unknown>> | ReadonlyArray<unknown>,
-  R = never
-> = Schema.Schema<A, I, R>;
+export const isEntityPropertySignature = (
+  property: SchemaAST.PropertySignature
+): boolean => {
+  const entityFieldAnnotation = property.annotations[EntityFieldIdAnnotationId];
+  return (
+    entityFieldAnnotation !== undefined &&
+    typeof entityFieldAnnotation === "string" &&
+    entityFieldAnnotation.startsWith("field##")
+  );
+};
+
+// ============================================================================
+// AST MANIPULATION
+// ============================================================================
 
 const stampASTRecursively = (
   ast: SchemaAST.AST,
@@ -72,7 +159,7 @@ const stampASTRecursively = (
       sig.isReadonly,
       {
         ...sig.annotations,
-        [EntityFieldAnnotationId]: Schema.decodeSync(EntityFieldId)(
+        [EntityFieldIdAnnotationId]: Schema.decodeSync(EntityFieldId)(
           `field##${entityId}`
         ),
       }
@@ -81,75 +168,9 @@ const stampASTRecursively = (
 
   return new SchemaAST.TypeLiteral(stampedSignatures, ast.indexSignatures, {
     ...ast.annotations,
-    [EntityTypeAnnotationId]: entityId,
+    [EntityIdAnnotationId]: entityId,
     [SchemaAST.IdentifierAnnotationId]: entityId,
   });
-};
-
-/**
- * Create an Entity from fields
- */
-export const MakeEntitySchema = <
-  A extends Readonly<Record<string, unknown>> | ReadonlyArray<unknown>,
-  I extends Readonly<Record<string, unknown>> | ReadonlyArray<unknown>,
-  R = never
->(options: {
-  schema: Schema.Schema<A, I, R>;
-  name: string;
-  entityId?: EntityId;
-}): Entity<A, I, R> => {
-  const entityId = options.entityId ?? MakeEntityId();
-
-  const stampedAST = stampASTRecursively(options.schema.ast, entityId);
-
-  return Schema.make(stampedAST).pipe(
-    Schema.annotations({
-      identifier: entityId,
-      schemaId: MakeSchemaId(options.name),
-    })
-  ) as Entity<A, I, R>;
-};
-
-export const isEntitySchema = <
-  A extends Readonly<Record<string, unknown>> | ReadonlyArray<unknown>,
-  I extends Readonly<Record<string, unknown>> | ReadonlyArray<unknown>,
-  R = never
->(
-  schema: Schema.Schema.Any
-): schema is Entity<A, I, R> => {
-  return (
-    isEntityId(schema.ast.annotations[EntityTypeAnnotationId] as string) &&
-    isEntityId(
-      schema.ast.annotations[SchemaAST.IdentifierAnnotationId] as string
-    )
-  );
-};
-
-/**
- * Type guard to check if an AST node is an entity field
- * Note: This checks AST node annotations, but entity field annotations are typically on property signatures
- */
-const isEntityField = (ast: SchemaAST.AST): boolean => {
-  const entityFieldAnnotation = ast.annotations[EntityFieldAnnotationId];
-  return (
-    entityFieldAnnotation !== undefined &&
-    typeof entityFieldAnnotation === "string" &&
-    entityFieldAnnotation.startsWith("field##")
-  );
-};
-
-/**
- * Type guard to check if a property signature has entity field annotation
- */
-const isEntityPropertySignature = (
-  property: SchemaAST.PropertySignature
-): boolean => {
-  const entityFieldAnnotation = property.annotations[EntityFieldAnnotationId];
-  return (
-    entityFieldAnnotation !== undefined &&
-    typeof entityFieldAnnotation === "string" &&
-    entityFieldAnnotation.startsWith("field##")
-  );
 };
 
 /**
@@ -162,7 +183,7 @@ export const createEntityFieldMatch = (): SchemaAST.Match<Array<string>> => ({
 
     // Check if current AST node is an entity field
     if (isEntityField(ast)) {
-      const fieldId = ast.annotations[EntityFieldAnnotationId] as string;
+      const fieldId = ast.annotations[EntityFieldIdAnnotationId] as string;
       const pathStr = path.length > 0 ? path.join(".") : "root";
       signatures = Array.append(
         signatures,
@@ -175,7 +196,7 @@ export const createEntityFieldMatch = (): SchemaAST.Match<Array<string>> => ({
       // Check if this property signature has entity field annotation
       if (isEntityPropertySignature(property)) {
         const entityFieldAnnotation = property.annotations[
-          EntityFieldAnnotationId
+          EntityFieldIdAnnotationId
         ] as string;
         const pathStr = path.length > 0 ? path.join(".") : "root";
         signatures = Array.append(
@@ -204,7 +225,6 @@ export const createEntityFieldMatch = (): SchemaAST.Match<Array<string>> => ({
   Refinement: () => [],
 
   // Handle Transformation types
-
   Transformation: () => [],
 
   // Handle Suspend (recursive) types
@@ -212,15 +232,10 @@ export const createEntityFieldMatch = (): SchemaAST.Match<Array<string>> => ({
 
   // Handle primitive types
   StringKeyword: () => [],
-
   NumberKeyword: () => [],
-
   BooleanKeyword: () => [],
-
   BigIntKeyword: () => [],
-
   SymbolKeyword: () => [],
-
   ObjectKeyword: () => [],
 
   // Handle literal types
@@ -230,13 +245,9 @@ export const createEntityFieldMatch = (): SchemaAST.Match<Array<string>> => ({
 
   // Handle other primitive types
   UndefinedKeyword: () => [],
-
   VoidKeyword: () => [],
-
   NeverKeyword: () => [],
-
   UnknownKeyword: () => [],
-
   AnyKeyword: () => [],
 
   // Handle template literals
@@ -253,6 +264,111 @@ export const createEntityFieldMatch = (): SchemaAST.Match<Array<string>> => ({
     return [];
   },
 });
+
+// ============================================================================
+// ENTITY MODELS
+// ============================================================================
+
+/**
+ * Entity interface - a schema with entity-specific annotations
+ * This creates a type-safe DSL for entity schemas
+ */
+export type Entity<
+  A extends Readonly<Record<string, unknown>> | ReadonlyArray<unknown>,
+  I extends Readonly<Record<string, unknown>> | ReadonlyArray<unknown>,
+  R = never
+> = Schema.Schema<A, I, R>;
+
+/**
+ * Type guard to ensure a schema has entity annotations
+ * This validates that a schema is part of our entity universe
+ */
+export const hasEntityAnnotations = (
+  schema: Schema.Schema.Any
+): schema is Entity<any, any, any> => {
+  const entityId = SchemaAST.getAnnotation<EntityId>(EntityIdAnnotationId)(
+    schema.ast
+  );
+  const identifier = SchemaAST.getAnnotation<EntityId>(
+    SchemaAST.IdentifierAnnotationId
+  )(schema.ast);
+
+  return Option.isSome(entityId) && Option.isSome(identifier);
+};
+
+/**
+ * Validate that a schema has entity annotations and return the entity ID
+ * This provides type-safe access to entity annotations
+ */
+export const validateEntitySchema = (
+  schema: Schema.Schema.Any
+): Option.Option<EntityId> => {
+  if (hasEntityAnnotations(schema)) {
+    return getEntityIdFromAnnotations(schema.ast);
+  }
+  return Option.none();
+};
+
+// ============================================================================
+// ENTITY CREATION
+// ============================================================================
+
+/**
+ * Create an Entity from fields with guaranteed entity annotations
+ * This ensures the schema is part of our entity universe with type-safe annotations
+ */
+export const MakeEntitySchema = <
+  A extends Readonly<Record<string, unknown>> | ReadonlyArray<unknown>,
+  I extends Readonly<Record<string, unknown>> | ReadonlyArray<unknown>,
+  R = never
+>(options: {
+  schema: Schema.Schema<A, I, R>;
+  name: string;
+  entityId?: EntityId;
+}): Entity<A, I, R> => {
+  const entityId = options.entityId ?? MakeEntityId();
+
+  const stampedAST = stampASTRecursively(options.schema.ast, entityId);
+
+  return Schema.make(stampedAST).pipe(
+    Schema.annotations({
+      [EntityIdAnnotationId]: entityId,
+      [SchemaAST.IdentifierAnnotationId]: entityId,
+      [SchemaAST.DescriptionAnnotationId]: `Entity schema: ${options.name}`,
+      schemaId: MakeSchemaId(options.name),
+    })
+  ) as Entity<A, I, R>;
+};
+
+export const isEntitySchema = <
+  A extends Readonly<Record<string, unknown>> | ReadonlyArray<unknown>,
+  I extends Readonly<Record<string, unknown>> | ReadonlyArray<unknown>,
+  R = never
+>(
+  schema: Schema.Schema.Any
+): schema is Entity<A, I, R> => {
+  return hasEntityAnnotations(schema);
+};
+
+export const AnnotateId = <
+  A extends Readonly<Record<string, unknown>> | ReadonlyArray<unknown>,
+  I extends Readonly<Record<string, unknown>> | ReadonlyArray<unknown>,
+  R = never
+>(
+  entity: Entity<A, I, R>,
+  entityId: EntityId
+): Entity<A, I, R> => {
+  return entity.pipe(
+    Schema.annotations({
+      [EntityIdAnnotationId]: entityId,
+      [SchemaAST.IdentifierAnnotationId]: entityId,
+    })
+  ) as Entity<A, I, R>;
+};
+
+// ============================================================================
+// ENTITY OPERATIONS
+// ============================================================================
 
 export const EntityPropHashSet = <
   A extends Readonly<Record<string, unknown>> | ReadonlyArray<unknown>,
@@ -277,6 +393,10 @@ export const EntityHash = <
   return Hash.hash(entityPropHashSet);
 };
 
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
 /**
  * Helper functions to extract entity metadata from schema
  */
@@ -287,7 +407,7 @@ export const getEntityId = <
 >(
   entity: Entity<A, I, R>
 ): EntityId => {
-  return entity.ast.annotations[EntityTypeAnnotationId] as EntityId;
+  return entity.ast.annotations[EntityIdAnnotationId] as EntityId;
 };
 
 export const getSchemaId = <

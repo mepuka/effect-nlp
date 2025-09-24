@@ -1,21 +1,32 @@
 /**
- * AST Traverse - Schema AST traversal and context extraction
+ * AST Traverse - Schema AST traversal and entity context extraction
  *
  * This module provides utilities to traverse Effect Schema ASTs and extract
- * contextual information from annotations, enabling the creation of semantic
- * context trees for prompt generation and schema analysis.
+ * entity contextual information from annotations, enabling the creation of
+ * semantic context trees for prompt generation and schema analysis.
  */
 
-import type { Schema } from "effect";
 import { SchemaAST, Effect, pipe, Chunk, HashMap, Option } from "effect";
+import type { Entity, EntityId, EntityFieldId } from "./Entity.js";
+import {
+  EntityIdAnnotationId,
+  EntityFieldIdAnnotationId,
+  ParentEntityIdAnnotationId,
+  isEntityId,
+  isEntityField,
+  isEntityPropertySignature,
+} from "./Entity.js";
 
 // ============================================================================
 // CORE TYPES FOR SCHEMA AST REPRESENTATION
 // ============================================================================
 
 /**
- * Represents a node in the schema AST tree with context
+ * Represents a node in the schema AST tree with entity context
  */
+
+
+
 export interface SchemaASTNode {
   readonly _tag: "SchemaASTNode";
   readonly path: ReadonlyArray<PropertyKey>;
@@ -26,28 +37,13 @@ export interface SchemaASTNode {
 }
 
 /**
- * Schema context extracted from annotations and usage
+ * Simplified schema context focused on entity annotations and description
  */
 export interface SchemaContext {
-  readonly identifier: Option.Option<string>;
-  readonly title: Option.Option<string>;
+  readonly entityId: Option.Option<EntityId>;
+  readonly entityFieldId: EntityFieldId;
+  readonly parentEntityId: EntityId;
   readonly description: Option.Option<string>;
-  readonly role: Option.Option<string>;
-  readonly semanticType: Option.Option<string>;
-  readonly examples: ReadonlyArray<string>;
-  readonly constraints: ReadonlyArray<string>;
-  readonly relationships: ReadonlyArray<SchemaRelationship>;
-}
-
-/**
- * Relationship between schemas
- */
-export interface SchemaRelationship {
-  readonly _tag: "SchemaRelationship";
-  readonly targetPath: ReadonlyArray<PropertyKey>;
-  readonly relationshipType: string;
-  readonly context: string;
-  readonly annotations: SchemaAST.Annotations;
 }
 
 /**
@@ -65,55 +61,31 @@ export interface SchemaASTTree {
 // ============================================================================
 
 /**
- * Extract context from schema annotations
+ * Extract entity context from schema annotations
  */
-const extractContextFromAnnotations = (
+const extractEntityContextFromAnnotations = (
   annotations: SchemaAST.Annotations,
   _path: ReadonlyArray<PropertyKey>
 ): SchemaContext => {
-  const identifier = Option.fromNullable(annotations["identifier"] as string);
-  const title = Option.fromNullable(annotations["title"] as string);
-  const description = Option.fromNullable(annotations["description"] as string);
-  const role = Option.fromNullable(annotations["role"] as string);
-  const semanticType = Option.fromNullable(
-    annotations["semanticType"] as string
+  const entityId = Option.fromNullable(
+    annotations[EntityIdAnnotationId] as EntityId
   );
-
-  const examples = Array.isArray(annotations["examples"])
-    ? (annotations["examples"] as ReadonlyArray<string>)
-    : [];
-
-  const constraints = Array.isArray(annotations["constraints"])
-    ? (annotations["constraints"] as ReadonlyArray<string>)
-    : [];
+  const entityFieldId = Option.fromNullable(
+    annotations[EntityFieldIdAnnotationId] as EntityFieldId
+  );
+  const parentEntityId = Option.fromNullable(
+    annotations[ParentEntityIdAnnotationId] as EntityId
+  );
+  const description = Option.fromNullable(annotations["description"] as string);
 
   return {
-    identifier,
-    title,
+    entityId,
+    entityFieldId,
+    parentEntityId,
     description,
-    role,
-    semanticType,
-    examples,
-    constraints,
-    relationships: [],
+    semanticType: Option.none(),
   };
 };
-
-/**
- * Create a schema relationship
- */
-const createSchemaRelationship = (
-  targetPath: ReadonlyArray<PropertyKey>,
-  relationshipType: string,
-  context: string,
-  annotations: SchemaAST.Annotations
-): SchemaRelationship => ({
-  _tag: "SchemaRelationship",
-  targetPath,
-  relationshipType,
-  context,
-  annotations,
-});
 
 // ============================================================================
 // AST TRAVERSAL COMPILER
@@ -125,7 +97,7 @@ const createSchemaRelationship = (
 const createASTTraversalMatch = (): SchemaAST.Match<SchemaASTNode> => ({
   // Handle TypeLiteral (struct-like schemas)
   TypeLiteral: (ast, compile, path) => {
-    const context = extractContextFromAnnotations(ast.annotations, path);
+    const context = extractEntityContextFromAnnotations(ast.annotations, path);
 
     // Process property signatures
     const children = pipe(
@@ -135,30 +107,20 @@ const createASTTraversalMatch = (): SchemaAST.Match<SchemaASTNode> => ({
         const childPath = [...path, property.name];
         const childNode = compile(property.type, childPath);
 
-        // Extract relationship context from property annotations
-        const propertyContext = extractContextFromAnnotations(
+        // Extract entity context from property annotations
+        const propertyContext = extractEntityContextFromAnnotations(
           property.annotations || {},
           childPath
         );
-
-        // Create relationship if this is a reference to another schema
-        const relationship = Option.isSome(propertyContext.identifier)
-          ? createSchemaRelationship(
-              childPath,
-              "property",
-              `Field ${String(property.name)} in ${
-                Option.getOrNull(context.identifier) || "schema"
-              }`,
-              property.annotations || {}
-            )
-          : null;
 
         return {
           ...childNode,
           context: {
             ...childNode.context,
-            role: Option.some(`property:${String(property.name)}`),
-            relationships: relationship ? [relationship] : [],
+            // If this property has entity field annotation, use it
+            entityFieldId: Option.isSome(propertyContext.entityFieldId)
+              ? propertyContext.entityFieldId
+              : childNode.context.entityFieldId,
           },
         };
       }),
@@ -171,13 +133,16 @@ const createASTTraversalMatch = (): SchemaAST.Match<SchemaASTNode> => ({
       ast,
       annotations: ast.annotations,
       children,
-      context,
+      context: {
+        ...context,
+        semanticType: Option.some("struct"),
+      },
     };
   },
 
   // Handle Union types
   Union: (ast, compile, path) => {
-    const context = extractContextFromAnnotations(ast.annotations, path);
+    const context = extractEntityContextFromAnnotations(ast.annotations, path);
 
     const children = pipe(
       ast.types,
@@ -204,7 +169,7 @@ const createASTTraversalMatch = (): SchemaAST.Match<SchemaASTNode> => ({
 
   // Handle Tuple types
   TupleType: (ast, compile, path) => {
-    const context = extractContextFromAnnotations(ast.annotations, path);
+    const context = extractEntityContextFromAnnotations(ast.annotations, path);
 
     const children = pipe(
       ast.elements,
@@ -231,7 +196,7 @@ const createASTTraversalMatch = (): SchemaAST.Match<SchemaASTNode> => ({
 
   // Handle Refinement types
   Refinement: (ast, compile, path) => {
-    const context = extractContextFromAnnotations(ast.annotations, path);
+    const context = extractEntityContextFromAnnotations(ast.annotations, path);
     const child = compile(ast.from, path);
 
     return {
@@ -249,7 +214,7 @@ const createASTTraversalMatch = (): SchemaAST.Match<SchemaASTNode> => ({
 
   // Handle Transformation types
   Transformation: (ast, compile, path) => {
-    const context = extractContextFromAnnotations(ast.annotations, path);
+    const context = extractEntityContextFromAnnotations(ast.annotations, path);
     const child = compile(ast.from, path);
 
     return {
@@ -267,7 +232,7 @@ const createASTTraversalMatch = (): SchemaAST.Match<SchemaASTNode> => ({
 
   // Handle Suspend (recursive) types
   Suspend: (ast, compile, path) => {
-    const context = extractContextFromAnnotations(ast.annotations, path);
+    const context = extractEntityContextFromAnnotations(ast.annotations, path);
 
     return {
       _tag: "SchemaASTNode",
@@ -290,7 +255,7 @@ const createASTTraversalMatch = (): SchemaAST.Match<SchemaASTNode> => ({
     annotations: ast.annotations,
     children: [],
     context: {
-      ...extractContextFromAnnotations(ast.annotations, path),
+      ...extractEntityContextFromAnnotations(ast.annotations, path),
       semanticType: Option.some("string"),
     },
   }),
@@ -302,7 +267,7 @@ const createASTTraversalMatch = (): SchemaAST.Match<SchemaASTNode> => ({
     annotations: ast.annotations,
     children: [],
     context: {
-      ...extractContextFromAnnotations(ast.annotations, path),
+      ...extractEntityContextFromAnnotations(ast.annotations, path),
       semanticType: Option.some("number"),
     },
   }),
@@ -314,7 +279,7 @@ const createASTTraversalMatch = (): SchemaAST.Match<SchemaASTNode> => ({
     annotations: ast.annotations,
     children: [],
     context: {
-      ...extractContextFromAnnotations(ast.annotations, path),
+      ...extractEntityContextFromAnnotations(ast.annotations, path),
       semanticType: Option.some("boolean"),
     },
   }),
@@ -326,7 +291,7 @@ const createASTTraversalMatch = (): SchemaAST.Match<SchemaASTNode> => ({
     annotations: ast.annotations,
     children: [],
     context: {
-      ...extractContextFromAnnotations(ast.annotations, path),
+      ...extractEntityContextFromAnnotations(ast.annotations, path),
       semanticType: Option.some("bigint"),
     },
   }),
@@ -338,7 +303,7 @@ const createASTTraversalMatch = (): SchemaAST.Match<SchemaASTNode> => ({
     annotations: ast.annotations,
     children: [],
     context: {
-      ...extractContextFromAnnotations(ast.annotations, path),
+      ...extractEntityContextFromAnnotations(ast.annotations, path),
       semanticType: Option.some("symbol"),
     },
   }),
@@ -350,7 +315,7 @@ const createASTTraversalMatch = (): SchemaAST.Match<SchemaASTNode> => ({
     annotations: ast.annotations,
     children: [],
     context: {
-      ...extractContextFromAnnotations(ast.annotations, path),
+      ...extractEntityContextFromAnnotations(ast.annotations, path),
       semanticType: Option.some("object"),
     },
   }),
@@ -363,9 +328,8 @@ const createASTTraversalMatch = (): SchemaAST.Match<SchemaASTNode> => ({
     annotations: ast.annotations,
     children: [],
     context: {
-      ...extractContextFromAnnotations(ast.annotations, path),
+      ...extractEntityContextFromAnnotations(ast.annotations, path),
       semanticType: Option.some("literal"),
-      examples: [String(ast.literal)],
     },
   }),
 
@@ -377,7 +341,7 @@ const createASTTraversalMatch = (): SchemaAST.Match<SchemaASTNode> => ({
     annotations: ast.annotations,
     children: [],
     context: {
-      ...extractContextFromAnnotations(ast.annotations, path),
+      ...extractEntityContextFromAnnotations(ast.annotations, path),
       semanticType: Option.some("undefined"),
     },
   }),
@@ -389,7 +353,7 @@ const createASTTraversalMatch = (): SchemaAST.Match<SchemaASTNode> => ({
     annotations: ast.annotations,
     children: [],
     context: {
-      ...extractContextFromAnnotations(ast.annotations, path),
+      ...extractEntityContextFromAnnotations(ast.annotations, path),
       semanticType: Option.some("void"),
     },
   }),
@@ -401,7 +365,7 @@ const createASTTraversalMatch = (): SchemaAST.Match<SchemaASTNode> => ({
     annotations: ast.annotations,
     children: [],
     context: {
-      ...extractContextFromAnnotations(ast.annotations, path),
+      ...extractEntityContextFromAnnotations(ast.annotations, path),
       semanticType: Option.some("never"),
     },
   }),
@@ -413,7 +377,7 @@ const createASTTraversalMatch = (): SchemaAST.Match<SchemaASTNode> => ({
     annotations: ast.annotations,
     children: [],
     context: {
-      ...extractContextFromAnnotations(ast.annotations, path),
+      ...extractEntityContextFromAnnotations(ast.annotations, path),
       semanticType: Option.some("unknown"),
     },
   }),
@@ -425,7 +389,7 @@ const createASTTraversalMatch = (): SchemaAST.Match<SchemaASTNode> => ({
     annotations: ast.annotations,
     children: [],
     context: {
-      ...extractContextFromAnnotations(ast.annotations, path),
+      ...extractEntityContextFromAnnotations(ast.annotations, path),
       semanticType: Option.some("any"),
     },
   }),
@@ -438,7 +402,7 @@ const createASTTraversalMatch = (): SchemaAST.Match<SchemaASTNode> => ({
     annotations: ast.annotations,
     children: [],
     context: {
-      ...extractContextFromAnnotations(ast.annotations, path),
+      ...extractEntityContextFromAnnotations(ast.annotations, path),
       semanticType: Option.some("template_literal"),
     },
   }),
@@ -451,9 +415,8 @@ const createASTTraversalMatch = (): SchemaAST.Match<SchemaASTNode> => ({
     annotations: ast.annotations,
     children: [],
     context: {
-      ...extractContextFromAnnotations(ast.annotations, path),
+      ...extractEntityContextFromAnnotations(ast.annotations, path),
       semanticType: Option.some("enum"),
-      examples: ast.enums.map(String),
     },
   }),
 
@@ -465,14 +428,14 @@ const createASTTraversalMatch = (): SchemaAST.Match<SchemaASTNode> => ({
     annotations: ast.annotations,
     children: [],
     context: {
-      ...extractContextFromAnnotations(ast.annotations, path),
+      ...extractEntityContextFromAnnotations(ast.annotations, path),
       semanticType: Option.some("unique_symbol"),
     },
   }),
 
   // Handle declarations
   Declaration: (ast, compile, path) => {
-    const context = extractContextFromAnnotations(ast.annotations, path);
+    const context = extractEntityContextFromAnnotations(ast.annotations, path);
 
     return {
       _tag: "SchemaASTNode",
@@ -493,13 +456,13 @@ const createASTTraversalMatch = (): SchemaAST.Match<SchemaASTNode> => ({
 // ============================================================================
 
 /**
- * Build a complete schema AST tree from a schema
+ * Build a complete schema AST tree from an Entity schema
  */
 export const buildSchemaASTTree = <A, I, R>(
-  schema: Schema.Schema<A, I, R>
+  entity: Entity<A, I, R>
 ): Effect.Effect<SchemaASTTree, never, R> => {
   return Effect.sync(() => {
-    const ast = schema.ast;
+    const ast = entity.ast;
     const compiler = SchemaAST.getCompiler(createASTTraversalMatch());
     const root = compiler(ast, []);
 
@@ -509,10 +472,13 @@ export const buildSchemaASTTree = <A, I, R>(
 
     const addNodeToMaps = (node: SchemaASTNode): void => {
       const pathKey = node.path.join(".");
-      const identifierKey =
-        Option.getOrNull(node.context.identifier) || pathKey;
+      const entityIdKey = pipe(
+        node.context.entityId,
+        Option.map((id) => id),
+        Option.getOrElse(() => pathKey)
+      );
 
-      nodeMap = HashMap.set(nodeMap, identifierKey, node);
+      nodeMap = HashMap.set(nodeMap, entityIdKey, node);
       pathMap = HashMap.set(pathMap, pathKey, node);
 
       node.children.forEach(addNodeToMaps);
@@ -568,17 +534,41 @@ export const findNodesBySemanticType = (
 };
 
 /**
- * Get all relationships for a specific node
+ * Find all entity nodes in the tree
  */
-export const getNodeRelationships = (
-  tree: SchemaASTTree,
-  nodePath: ReadonlyArray<PropertyKey>
-): ReadonlyArray<SchemaRelationship> => {
-  return pipe(
-    HashMap.get(tree.pathMap, nodePath.join(".")),
-    Option.map((node) => node.context.relationships),
-    Option.getOrElse(() => [])
-  );
+export const findEntityNodes = (
+  tree: SchemaASTTree
+): ReadonlyArray<SchemaASTNode> => {
+  const results: Array<SchemaASTNode> = [];
+
+  const traverse = (node: SchemaASTNode): void => {
+    if (Option.isSome(node.context.entityId)) {
+      results.push(node);
+    }
+    node.children.forEach(traverse);
+  };
+
+  traverse(tree.root);
+  return results;
+};
+
+/**
+ * Find all entity field nodes in the tree
+ */
+export const findEntityFieldNodes = (
+  tree: SchemaASTTree
+): ReadonlyArray<SchemaASTNode> => {
+  const results: Array<SchemaASTNode> = [];
+
+  const traverse = (node: SchemaASTNode): void => {
+    if (Option.isSome(node.context.entityFieldId)) {
+      results.push(node);
+    }
+    node.children.forEach(traverse);
+  };
+
+  traverse(tree.root);
+  return results;
 };
 
 // ============================================================================
@@ -594,12 +584,24 @@ export const generatePromptContext = (node: SchemaASTNode): string => {
 
   const parts: Array<string> = [];
 
-  // Add identifier/title
-  const name =
-    Option.getOrNull(context.title) ||
-    Option.getOrNull(context.identifier) ||
-    path;
-  parts.push(`Schema: ${name}`);
+  // Add entity information
+  Option.match(context.entityId, {
+    onNone: () => {},
+    onSome: (entityId) => parts.push(`Entity: ${entityId}`),
+  });
+
+  Option.match(context.entityFieldId, {
+    onNone: () => {},
+    onSome: (fieldId) => parts.push(`Field: ${fieldId}`),
+  });
+
+  Option.match(context.parentEntityId, {
+    onNone: () => {},
+    onSome: (parentId) => parts.push(`Parent: ${parentId}`),
+  });
+
+  // Add path
+  parts.push(`Path: ${path}`);
 
   // Add description
   Option.match(context.description, {
@@ -607,35 +609,11 @@ export const generatePromptContext = (node: SchemaASTNode): string => {
     onSome: (desc) => parts.push(`Description: ${desc}`),
   });
 
-  // Add role context
-  Option.match(context.role, {
-    onNone: () => {},
-    onSome: (role) => parts.push(`Role: ${role}`),
-  });
-
   // Add semantic type
   Option.match(context.semanticType, {
     onNone: () => {},
     onSome: (type) => parts.push(`Type: ${type}`),
   });
-
-  // Add examples
-  if (context.examples.length > 0) {
-    parts.push(`Examples: ${context.examples.join(", ")}`);
-  }
-
-  // Add constraints
-  if (context.constraints.length > 0) {
-    parts.push(`Constraints: ${context.constraints.join(", ")}`);
-  }
-
-  // Add relationships
-  if (context.relationships.length > 0) {
-    const rels = context.relationships.map(
-      (rel) => `${rel.relationshipType}: ${rel.context}`
-    );
-    parts.push(`Relationships: ${rels.join(", ")}`);
-  }
 
   return parts.join("\n");
 };

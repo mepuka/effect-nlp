@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { pipe } from "effect";
+import type {
+  POSPatternElement} from "../../src/NLP/Core/index.js";
 import {
-  POSPatternElement,
   pos,
   entity,
   literal,

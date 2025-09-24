@@ -16,11 +16,17 @@ import type { WinkError } from "./WinkEngine.js";
  * Convert wink token to our Token model using proper wink-nlp its API
  * Based on https://winkjs.org/wink-nlp/its-as-helper.html
  */
+interface TokenConversionResult {
+  readonly token: Token;
+  readonly nextOffset: number;
+}
+
 const convertWinkToken = (
   winkToken: ItemToken,
   index: number,
-  its: any
-): Token => {
+  its: any,
+  currentOffset: number
+): TokenConversionResult => {
   // Get all available token properties using wink its API
   const text = winkToken.out(); // its.value is default
   const pos = winkToken.out(its.pos);
@@ -38,25 +44,52 @@ const convertWinkToken = (
   const negationFlag = winkToken.out(its.negationFlag);
   const precedingSpaces = winkToken.out(its.precedingSpaces);
 
-  // Get character position using its.offset
-  const offset = winkToken.out(its.offset);
-  const start = typeof offset === "number" ? offset : index * 2;
+  // Track character positions by accumulating preceding whitespace length
+  const precedingSpacesText =
+    typeof precedingSpaces === "string" ? precedingSpaces : "";
+  const tokenText = typeof text === "string" ? text : String(text ?? "");
+  const start = currentOffset + precedingSpacesText.length;
+  const end = start + tokenText.length;
 
-  return new Token({
-    text: text || "",
-    index: TokenIndex(index),
-    start: CharPosition(start),
-    end: CharPosition(start + (text?.length || 0)),
-    pos: pos ? Option.some(pos as string) : Option.none<string>(),
-    lemma: lemma ? Option.some(lemma as string) : Option.none<string>(),
-    stem: stem ? Option.some(stem as string) : Option.none<string>(),
-    normal: normal ? Option.some(normal as string) : Option.none<string>(),
-    shape: shape ? Option.some(shape as string) : Option.none<string>(),
-    prefix: prefix ? Option.some(prefix as string) : Option.none<string>(),
-    suffix: suffix ? Option.some(suffix as string) : Option.none<string>(),
-    case: case_ ? Option.some(case_ as string) : Option.none<string>(),
+  const token = Token.make({
+    text: tokenText,
+    index: TokenIndex.make(index),
+    start: CharPosition.make(start),
+    end: CharPosition.make(end),
+    pos:
+      typeof pos === "string" && pos.length > 0
+        ? Option.some(pos)
+        : Option.none<string>(),
+    lemma:
+      typeof lemma === "string" && lemma.length > 0
+        ? Option.some(lemma)
+        : Option.none<string>(),
+    stem:
+      typeof stem === "string" && stem.length > 0
+        ? Option.some(stem)
+        : Option.none<string>(),
+    normal:
+      typeof normal === "string" && normal.length > 0
+        ? Option.some(normal)
+        : Option.none<string>(),
+    shape:
+      typeof shape === "string" && shape.length > 0
+        ? Option.some(shape)
+        : Option.none<string>(),
+    prefix:
+      typeof prefix === "string" && prefix.length > 0
+        ? Option.some(prefix)
+        : Option.none<string>(),
+    suffix:
+      typeof suffix === "string" && suffix.length > 0
+        ? Option.some(suffix)
+        : Option.none<string>(),
+    case:
+      typeof case_ === "string" && case_.length > 0
+        ? Option.some(case_)
+        : Option.none<string>(),
     uniqueId:
-      typeof uniqueId === "number"
+      typeof uniqueId === "number" && Number.isFinite(uniqueId)
         ? Option.some(uniqueId)
         : Option.none<number>(),
     abbrevFlag:
@@ -75,11 +108,13 @@ const convertWinkToken = (
       typeof negationFlag === "boolean"
         ? Option.some(negationFlag)
         : Option.none<boolean>(),
-    precedingSpaces: precedingSpaces
-      ? Option.some(precedingSpaces as string)
-      : Option.none<string>(),
+    precedingSpaces:
+      precedingSpacesText.length > 0
+        ? Option.some(precedingSpacesText)
+        : Option.none<string>(),
     tags: [],
   });
+  return { token, nextOffset: end };
 };
 
 /**
@@ -99,10 +134,10 @@ const convertWinkSentence = (
 
   return new Sentence({
     text: text || "",
-    index: SentenceIndex(index),
+    index: SentenceIndex.make(index),
     tokens,
-    start: TokenIndex(span?.[0] || 0),
-    end: TokenIndex(span?.[1] || Chunk.size(tokens) - 1),
+    start: TokenIndex.make(span?.[0] ?? 0),
+    end: TokenIndex.make(span?.[1] ?? Chunk.size(tokens) - 1),
     sentiment:
       typeof sentiment === "number" ? Option.some(sentiment) : Option.none(),
     importance: Option.none(),
@@ -133,9 +168,14 @@ export class WinkTokenizer extends Effect.Service<WinkTokenizer>()(
           Effect.gen(function* () {
             const rawTokens = yield* engine.getWinkTokens(text);
             const its = yield* engine.its;
-            return Chunk.fromIterable(rawTokens).pipe(
-              Chunk.map((token, index) => convertWinkToken(token, index, its))
-            );
+            const tokens: Array<Token> = [];
+            let offset = 0;
+            rawTokens.forEach((token, index) => {
+              const conversion = convertWinkToken(token, index, its, offset);
+              tokens.push(conversion.token);
+              offset = conversion.nextOffset;
+            });
+            return Chunk.fromIterable(tokens);
           }),
 
         /**
@@ -149,10 +189,14 @@ export class WinkTokenizer extends Effect.Service<WinkTokenizer>()(
             const sentences = doc.sentences();
             const allTokens = yield* engine.getWinkTokens(text);
             const its = yield* engine.its;
-
-            const tokenObjects = Chunk.fromIterable(allTokens).pipe(
-              Chunk.map((token, index) => convertWinkToken(token, index, its))
-            );
+            const tokenBuffer: Array<Token> = [];
+            let offset = 0;
+            allTokens.forEach((token, index) => {
+              const conversion = convertWinkToken(token, index, its, offset);
+              tokenBuffer.push(conversion.token);
+              offset = conversion.nextOffset;
+            });
+            const tokenObjects = Chunk.fromIterable(tokenBuffer);
 
             return Chunk.fromIterable(sentences.out()).pipe(
               Chunk.map((sentenceText, index) => {
@@ -187,9 +231,14 @@ export class WinkTokenizer extends Effect.Service<WinkTokenizer>()(
             const its = yield* engine.its;
 
             // Convert tokens
-            const tokenObjects = Chunk.fromIterable(tokens).pipe(
-              Chunk.map((token, index) => convertWinkToken(token, index, its))
-            );
+            const tokenArray: Array<Token> = [];
+            let offset = 0;
+            tokens.forEach((token, index) => {
+              const conversion = convertWinkToken(token, index, its, offset);
+              tokenArray.push(conversion.token);
+              offset = conversion.nextOffset;
+            });
+            const tokenObjects = Chunk.fromIterable(tokenArray);
 
             // Get sentences
             const doc = yield* engine.getWinkDoc(text);

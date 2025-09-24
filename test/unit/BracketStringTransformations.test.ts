@@ -322,7 +322,7 @@ describe("Bracket String Transformations", () => {
     it("should handle large arrays efficiently", () => {
       const largeArray = Array.from({ length: 50 }, (_, i) => `word${i}`);
       const element = LiteralPatternElement.make({
-        value: Data.array(largeArray as readonly [string, ...string[]]),
+        value: Data.array(largeArray as readonly [string, ...Array<string>]),
       });
       
       const result = Pattern.Literal.toBracketString(element.value);

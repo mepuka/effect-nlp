@@ -616,7 +616,7 @@ describe("WinkUtils Property-Based Tests", () => {
     it("should scale linearly with input size", () => {
       const baseText = "The quick brown fox jumps over the lazy dog. ";
       const sizes = [1, 10, 50];
-      const times: number[] = [];
+      const times: Array<number> = [];
 
       sizes.forEach((multiplier) => {
         const text = baseText.repeat(multiplier);

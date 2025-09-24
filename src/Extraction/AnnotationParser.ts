@@ -159,7 +159,7 @@ export const minimalFormatOptions: SchemaFormatOptions = {
  * Create a beautiful hierarchical schema tree with consistent design language
  */
 export const schemaToDoc = (
-  schema: Schema.Schema<any, any, any>,
+  schema: Schema.Schema.Any,
   options: SchemaFormatOptions = defaultFormatOptions
 ): Doc.Doc<never> => {
   // Design constants for consistent aesthetics

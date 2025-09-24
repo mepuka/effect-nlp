@@ -61,18 +61,14 @@ export namespace Sentence {
   /**
    * Get sentence length in tokens - dual API (data-first and data-last)
    */
-  export const tokenCount = Function.dual<
-    (self: Sentence) => number,
-    (sentence: Sentence) => number
-  >(1, (sentence: Sentence): number => Chunk.size(sentence.tokens));
+  export const tokenCount = (sentence: Sentence): number =>
+    Chunk.size(sentence.tokens);
 
   /**
    * Get sentence length in characters - dual API (data-first and data-last)
    */
-  export const characterCount = Function.dual<
-    (self: Sentence) => number,
-    (sentence: Sentence) => number
-  >(1, (sentence: Sentence): number => sentence.text.length);
+  export const characterCount = (sentence: Sentence): number =>
+    sentence.text.length;
 
   /**
    * Get tokens in range - dual API (data-first and data-last)
@@ -96,47 +92,36 @@ export namespace Sentence {
   /**
    * Get sentence text - dual API (data-first and data-last)
    */
-  export const text = Function.dual<
-    (self: Sentence) => string,
-    (sentence: Sentence) => string
-  >(1, (sentence: Sentence): string => sentence.text);
+  export const text = (sentence: Sentence): string => sentence.text;
 
   /**
    * Get sentence sentiment - dual API (data-first and data-last)
    */
-  export const sentiment = Function.dual<
-    (self: Sentence) => Option.Option<number>,
-    (sentence: Sentence) => Option.Option<number>
-  >(1, (sentence: Sentence): Option.Option<number> => sentence.sentiment);
+  export const sentiment = (
+    sentence: Sentence
+  ): Option.Option<number> => sentence.sentiment;
 
   /**
    * Get sentence importance - dual API (data-first and data-last)
    */
-  export const importance = Function.dual<
-    (self: Sentence) => Option.Option<number>,
-    (sentence: Sentence) => Option.Option<number>
-  >(1, (sentence: Sentence): Option.Option<number> => sentence.importance);
+  export const importance = (
+    sentence: Sentence
+  ): Option.Option<number> => sentence.importance;
 
   /**
    * Check if sentence has sentiment - dual API (data-first and data-last)
    */
-  export const hasSentiment = Function.dual<
-    (self: Sentence) => boolean,
-    (sentence: Sentence) => boolean
-  >(1, (sentence: Sentence): boolean => Option.isSome(sentence.sentiment));
+  export const hasSentiment = (sentence: Sentence): boolean =>
+    Option.isSome(sentence.sentiment);
 
   /**
    * Check if sentence has negation flag - dual API (data-first and data-last)
    */
-  export const hasNegation = Function.dual<
-    (self: Sentence) => boolean,
-    (sentence: Sentence) => boolean
-  >(1, (sentence: Sentence): boolean =>
+  export const hasNegation = (sentence: Sentence): boolean =>
     Option.match(sentence.negationFlag, {
       onNone: () => false,
       onSome: (hasNegation) => hasNegation,
-    })
-  );
+    });
 
   /**
    * Get token by index - dual API (data-first and data-last)
@@ -153,14 +138,8 @@ export namespace Sentence {
   /**
    * Get all token texts - dual API (data-first and data-last)
    */
-  export const tokenTexts = Function.dual<
-    (self: Sentence) => Chunk.Chunk<string>,
-    (sentence: Sentence) => Chunk.Chunk<string>
-  >(
-    1,
-    (sentence: Sentence): Chunk.Chunk<string> =>
-      Chunk.map(sentence.tokens, (token) => token.text)
-  );
+  export const tokenTexts = (sentence: Sentence): Chunk.Chunk<string> =>
+    Chunk.map(sentence.tokens, (token) => token.text);
 
   /**
    * Update sentence text - dual API (data-first and data-last)

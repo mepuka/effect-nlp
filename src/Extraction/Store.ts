@@ -22,8 +22,7 @@ export const EntityStoreEntry = Schema.Struct({
   entityId: EntityId,
   schemaId: SchemaId,
   entityHash: Schema.Number,
-  createdAt: Schema.String,
-  updatedAt: Schema.String,
+  createdAt: Schema.DateTimeUtcFromDate,
   schemaJson: Schema.String, // Store the serialized schema as JSON
   schemaAst: Schema.Unknown, // Store the AST structure
 });

@@ -85,10 +85,7 @@ export namespace Token {
   /**
    * Get token length - dual API (data-first and data-last)
    */
-  export const length = Function.dual<
-    (self: Token) => number,
-    (token: Token) => number
-  >(1, (token: Token): number => token.end - token.start);
+  export const length = (token: Token): number => token.end - token.start;
 
   /**
    * Check if token contains position - dual API (data-first and data-last)
@@ -105,65 +102,44 @@ export namespace Token {
   /**
    * Check if token is punctuation (based on shape) - dual API (data-first and data-last)
    */
-  export const isPunctuation = Function.dual<
-    (self: Token) => boolean,
-    (token: Token) => boolean
-  >(1, (token: Token): boolean =>
+  export const isPunctuation = (token: Token): boolean =>
     Option.match(token.shape, {
       onNone: () => false,
       onSome: (shape) => !/[Xxd]/.test(shape),
-    })
-  );
+    });
 
   /**
    * Check if token is word (has letters) - dual API (data-first and data-last)
    */
-  export const isWord = Function.dual<
-    (self: Token) => boolean,
-    (token: Token) => boolean
-  >(1, (token: Token): boolean =>
+  export const isWord = (token: Token): boolean =>
     Option.match(token.shape, {
       onNone: () => true,
       onSome: (shape) => /[Xx]/.test(shape),
-    })
-  );
+    });
 
   /**
    * Check if token is stop word - dual API (data-first and data-last)
    */
-  export const isStopWord = Function.dual<
-    (self: Token) => boolean,
-    (token: Token) => boolean
-  >(1, (token: Token): boolean =>
+  export const isStopWord = (token: Token): boolean =>
     Option.match(token.stopWordFlag, {
       onNone: () => false,
       onSome: (isStop) => isStop,
-    })
-  );
+    });
 
   /**
    * Get token text - dual API (data-first and data-last)
    */
-  export const text = Function.dual<
-    (self: Token) => string,
-    (token: Token) => string
-  >(1, (token: Token): string => token.text);
+  export const text = (token: Token): string => token.text;
 
   /**
    * Get token POS tag - dual API (data-first and data-last)
    */
-  export const pos = Function.dual<
-    (self: Token) => Option.Option<string>,
-    (token: Token) => Option.Option<string>
-  >(1, (token: Token): Option.Option<string> => token.pos);
+  export const pos = (token: Token): Option.Option<string> => token.pos;
 
   /**
    * Get token lemma - dual API (data-first and data-last)
    */
-  export const lemma = Function.dual<
-    (self: Token) => Option.Option<string>,
-    (token: Token) => Option.Option<string>
-  >(1, (token: Token): Option.Option<string> => token.lemma);
+  export const lemma = (token: Token): Option.Option<string> => token.lemma;
 
   /**
    * Update token text - dual API (data-first and data-last)
