@@ -1,598 +1,144 @@
 /**
- * AST Traverse - Schema AST traversal and entity context extraction
+ * Schema AST traversal utilities for entity extraction.
  *
- * This module provides utilities to traverse Effect Schema ASTs and extract
- * entity contextual information from annotations, enabling the creation of
- * semantic context trees for prompt generation and schema analysis.
+ * Provides typed, immutable schema AST trees with entity-aware context
+ * derived from annotations. The traversal APIs are stack-safe and integrate
+ * with the typed annotation helpers defined in `Annotations.ts`.
  */
 
-import { SchemaAST, Effect, pipe, Chunk, HashMap, Option } from "effect";
-import type { Entity, EntityId, EntityFieldId } from "./Entity.js";
+import { Effect, HashMap, Option, SchemaAST, pipe } from "effect";
+import type { Entity, EntityFieldId, EntityId } from "./Entity.js";
 import {
-  EntityIdAnnotationId,
   EntityFieldIdAnnotationId,
+  EntityIdAnnotationId,
   ParentEntityIdAnnotationId,
 } from "./Entity.js";
 import { Annotations } from "./Annotations.js";
+import {
+  buildSchemaAstTree as buildGenericSchemaAstTree,
+  type BuildContext,
+  type SchemaAstNode as GenericSchemaAstNode,
+} from "./SchemaAstTree.js";
 
-// ============================================================================
-// CORE TYPES FOR SCHEMA AST REPRESENTATION
-// ============================================================================
+export type SchemaASTNode = GenericSchemaAstNode<SchemaContext>;
 
-/**
- * Represents a node in the schema AST tree with entity context
- */
-
-
-
-export interface SchemaASTNode {
-  readonly _tag: "SchemaASTNode";
-  readonly path: ReadonlyArray<PropertyKey>;
-  readonly ast: SchemaAST.AST;
-  readonly annotations: SchemaAST.Annotations;
-  readonly children: ReadonlyArray<SchemaASTNode>;
-  readonly context: SchemaContext;
-}
-
-/**
- * Simplified schema context focused on entity annotations and description
- */
-export interface SchemaContext {
-  readonly entityId: Option.Option<EntityId>;
-  readonly entityFieldId: Option.Option<EntityFieldId>;
-  readonly parentEntityId: Option.Option<EntityId>;
-  readonly description: Option.Option<string>;
-  readonly semanticType: Option.Option<string>;
-  readonly annotations: Annotations.Context;
-}
-
-/**
- * Schema AST Tree representation
- */
 export interface SchemaASTTree {
-  readonly _tag: "SchemaASTTree";
   readonly root: SchemaASTNode;
   readonly nodeMap: HashMap.HashMap<string, SchemaASTNode>;
   readonly pathMap: HashMap.HashMap<string, SchemaASTNode>;
 }
 
-// ============================================================================
-// CONTEXT EXTRACTION UTILITIES
-// ============================================================================
+export interface SchemaContext {
+  readonly entityId: Option.Option<EntityId>;
+  readonly entityFieldId: Option.Option<EntityFieldId>;
+  readonly parentEntityId: Option.Option<EntityId>;
+  readonly identifier: Option.Option<SchemaAST.IdentifierAnnotation>;
+  readonly title: Option.Option<string>;
+  readonly description: Option.Option<string>;
+  readonly semanticType: Option.Option<string>;
+  readonly annotations: Annotations.Context;
+}
 
-/**
- * Extract entity context from schema annotations
- */
-const extractEntityContextFromAnnotations = (
-  annotations: SchemaAST.Annotations,
-  _path: ReadonlyArray<PropertyKey>
-): SchemaContext => {
-  const entityId = Option.fromNullable(
-    annotations[EntityIdAnnotationId] as EntityId
-  );
-  const entityFieldId = Option.fromNullable(
-    annotations[EntityFieldIdAnnotationId] as EntityFieldId | undefined
-  );
-  const parentEntityId = Option.fromNullable(
-    annotations[ParentEntityIdAnnotationId] as EntityId | undefined
-  );
-  const annotationContext = Annotations.getContext(annotations);
-  const description = pipe(
-    annotationContext.core,
-    Option.flatMap((core) => Option.fromNullable(core.description)),
-    Option.orElse(() =>
-      Option.fromNullable(annotations["description"] as string | undefined)
-    )
-  );
-
-  return {
-    entityId,
-    entityFieldId,
-    parentEntityId,
-    description,
-    semanticType: Option.none(),
-    annotations: annotationContext,
-  };
-};
-
-// ============================================================================
-// AST TRAVERSAL COMPILER
-// ============================================================================
-
-/**
- * AST traversal match patterns for different schema types
- */
-const createASTTraversalMatch = (): SchemaAST.Match<SchemaASTNode> => ({
-  // Handle TypeLiteral (struct-like schemas)
-  TypeLiteral: (ast, compile, path) => {
-    const context = extractEntityContextFromAnnotations(ast.annotations, path);
-
-    // Process property signatures
-    const children = pipe(
-      ast.propertySignatures,
-      Chunk.fromIterable,
-      Chunk.map((property) => {
-        const childPath = [...path, property.name];
-        const childNode = compile(property.type, childPath);
-
-        // Extract entity context from property annotations
-        const propertyContext = extractEntityContextFromAnnotations(
-          property.annotations || {},
-          childPath
-        );
-
-        return {
-          ...childNode,
-          context: {
-            ...childNode.context,
-            // If this property has entity field annotation, use it
-            entityFieldId: Option.isSome(propertyContext.entityFieldId)
-              ? propertyContext.entityFieldId
-              : childNode.context.entityFieldId,
-          },
-        };
-      }),
-      Chunk.toArray
-    );
-
-    return {
-      _tag: "SchemaASTNode",
-      path,
-      ast,
-      annotations: ast.annotations,
-      children,
-      context: {
-        ...context,
-        semanticType: Option.some("struct"),
-      },
-    };
-  },
-
-  // Handle Union types
-  Union: (ast, compile, path) => {
-    const context = extractEntityContextFromAnnotations(ast.annotations, path);
-
-    const children = pipe(
-      ast.types,
-      Chunk.fromIterable,
-      Chunk.map((type, index) => {
-        const childPath = [...path, `union_${index}`];
-        return compile(type, childPath);
-      }),
-      Chunk.toArray
-    );
-
-    return {
-      _tag: "SchemaASTNode",
-      path,
-      ast,
-      annotations: ast.annotations,
-      children,
-      context: {
-        ...context,
-        semanticType: Option.some("union"),
-      },
-    };
-  },
-
-  // Handle Tuple types
-  TupleType: (ast, compile, path) => {
-    const context = extractEntityContextFromAnnotations(ast.annotations, path);
-
-    const children = pipe(
-      ast.elements,
-      Chunk.fromIterable,
-      Chunk.map((element, index) => {
-        const childPath = [...path, `tuple_${index}`];
-        return compile(element.type, childPath);
-      }),
-      Chunk.toArray
-    );
-
-    return {
-      _tag: "SchemaASTNode",
-      path,
-      ast,
-      annotations: ast.annotations,
-      children,
-      context: {
-        ...context,
-        semanticType: Option.some("tuple"),
-      },
-    };
-  },
-
-  // Handle Refinement types
-  Refinement: (ast, compile, path) => {
-    const context = extractEntityContextFromAnnotations(ast.annotations, path);
-    const child = compile(ast.from, path);
-
-    return {
-      _tag: "SchemaASTNode",
-      path,
-      ast,
-      annotations: ast.annotations,
-      children: [child],
-      context: {
-        ...context,
-        semanticType: Option.some("refinement"),
-      },
-    };
-  },
-
-  // Handle Transformation types
-  Transformation: (ast, compile, path) => {
-    const context = extractEntityContextFromAnnotations(ast.annotations, path);
-    const child = compile(ast.from, path);
-
-    return {
-      _tag: "SchemaASTNode",
-      path,
-      ast,
-      annotations: ast.annotations,
-      children: [child],
-      context: {
-        ...context,
-        semanticType: Option.some("transformation"),
-      },
-    };
-  },
-
-  // Handle Suspend (recursive) types
-  Suspend: (ast, compile, path) => {
-    const context = extractEntityContextFromAnnotations(ast.annotations, path);
-
-    return {
-      _tag: "SchemaASTNode",
-      path,
-      ast,
-      annotations: ast.annotations,
-      children: [],
-      context: {
-        ...context,
-        semanticType: Option.some("recursive"),
-      },
-    };
-  },
-
-  // Handle primitive types
-  StringKeyword: (ast, compile, path) => ({
-    _tag: "SchemaASTNode",
-    path,
-    ast,
-    annotations: ast.annotations,
-    children: [],
-    context: {
-      ...extractEntityContextFromAnnotations(ast.annotations, path),
-      semanticType: Option.some("string"),
-    },
-  }),
-
-  NumberKeyword: (ast, compile, path) => ({
-    _tag: "SchemaASTNode",
-    path,
-    ast,
-    annotations: ast.annotations,
-    children: [],
-    context: {
-      ...extractEntityContextFromAnnotations(ast.annotations, path),
-      semanticType: Option.some("number"),
-    },
-  }),
-
-  BooleanKeyword: (ast, compile, path) => ({
-    _tag: "SchemaASTNode",
-    path,
-    ast,
-    annotations: ast.annotations,
-    children: [],
-    context: {
-      ...extractEntityContextFromAnnotations(ast.annotations, path),
-      semanticType: Option.some("boolean"),
-    },
-  }),
-
-  BigIntKeyword: (ast, compile, path) => ({
-    _tag: "SchemaASTNode",
-    path,
-    ast,
-    annotations: ast.annotations,
-    children: [],
-    context: {
-      ...extractEntityContextFromAnnotations(ast.annotations, path),
-      semanticType: Option.some("bigint"),
-    },
-  }),
-
-  SymbolKeyword: (ast, compile, path) => ({
-    _tag: "SchemaASTNode",
-    path,
-    ast,
-    annotations: ast.annotations,
-    children: [],
-    context: {
-      ...extractEntityContextFromAnnotations(ast.annotations, path),
-      semanticType: Option.some("symbol"),
-    },
-  }),
-
-  ObjectKeyword: (ast, compile, path) => ({
-    _tag: "SchemaASTNode",
-    path,
-    ast,
-    annotations: ast.annotations,
-    children: [],
-    context: {
-      ...extractEntityContextFromAnnotations(ast.annotations, path),
-      semanticType: Option.some("object"),
-    },
-  }),
-
-  // Handle literal types
-  Literal: (ast, compile, path) => ({
-    _tag: "SchemaASTNode",
-    path,
-    ast,
-    annotations: ast.annotations,
-    children: [],
-    context: {
-      ...extractEntityContextFromAnnotations(ast.annotations, path),
-      semanticType: Option.some("literal"),
-    },
-  }),
-
-  // Handle other primitive types
-  UndefinedKeyword: (ast, compile, path) => ({
-    _tag: "SchemaASTNode",
-    path,
-    ast,
-    annotations: ast.annotations,
-    children: [],
-    context: {
-      ...extractEntityContextFromAnnotations(ast.annotations, path),
-      semanticType: Option.some("undefined"),
-    },
-  }),
-
-  VoidKeyword: (ast, compile, path) => ({
-    _tag: "SchemaASTNode",
-    path,
-    ast,
-    annotations: ast.annotations,
-    children: [],
-    context: {
-      ...extractEntityContextFromAnnotations(ast.annotations, path),
-      semanticType: Option.some("void"),
-    },
-  }),
-
-  NeverKeyword: (ast, compile, path) => ({
-    _tag: "SchemaASTNode",
-    path,
-    ast,
-    annotations: ast.annotations,
-    children: [],
-    context: {
-      ...extractEntityContextFromAnnotations(ast.annotations, path),
-      semanticType: Option.some("never"),
-    },
-  }),
-
-  UnknownKeyword: (ast, compile, path) => ({
-    _tag: "SchemaASTNode",
-    path,
-    ast,
-    annotations: ast.annotations,
-    children: [],
-    context: {
-      ...extractEntityContextFromAnnotations(ast.annotations, path),
-      semanticType: Option.some("unknown"),
-    },
-  }),
-
-  AnyKeyword: (ast, compile, path) => ({
-    _tag: "SchemaASTNode",
-    path,
-    ast,
-    annotations: ast.annotations,
-    children: [],
-    context: {
-      ...extractEntityContextFromAnnotations(ast.annotations, path),
-      semanticType: Option.some("any"),
-    },
-  }),
-
-  // Handle template literals
-  TemplateLiteral: (ast, compile, path) => ({
-    _tag: "SchemaASTNode",
-    path,
-    ast,
-    annotations: ast.annotations,
-    children: [],
-    context: {
-      ...extractEntityContextFromAnnotations(ast.annotations, path),
-      semanticType: Option.some("template_literal"),
-    },
-  }),
-
-  // Handle enums
-  Enums: (ast, compile, path) => ({
-    _tag: "SchemaASTNode",
-    path,
-    ast,
-    annotations: ast.annotations,
-    children: [],
-    context: {
-      ...extractEntityContextFromAnnotations(ast.annotations, path),
-      semanticType: Option.some("enum"),
-    },
-  }),
-
-  // Handle unique symbols
-  UniqueSymbol: (ast, compile, path) => ({
-    _tag: "SchemaASTNode",
-    path,
-    ast,
-    annotations: ast.annotations,
-    children: [],
-    context: {
-      ...extractEntityContextFromAnnotations(ast.annotations, path),
-      semanticType: Option.some("unique_symbol"),
-    },
-  }),
-
-  // Handle declarations
-  Declaration: (ast, compile, path) => {
-    const context = extractEntityContextFromAnnotations(ast.annotations, path);
-
-    return {
-      _tag: "SchemaASTNode",
-      path,
-      ast,
-      annotations: ast.annotations,
-      children: [],
-      context: {
-        ...context,
-        semanticType: Option.some("declaration"),
-      },
-    };
-  },
-});
-
-// ============================================================================
-// SCHEMA AST TREE BUILDER
-// ============================================================================
-
-/**
- * Build a complete schema AST tree from an Entity schema
- */
 export const buildSchemaASTTree = <A, I, R>(
   entity: Entity<A, I, R>
-): Effect.Effect<SchemaASTTree, never, R> => {
-  return Effect.sync(() => {
-    const ast = entity.ast;
-    const compiler = SchemaAST.getCompiler(createASTTraversalMatch());
-    const root = compiler(ast, []);
+): Effect.Effect<SchemaASTTree, never, R> =>
+  Effect.sync(() => {
+    const genericTree = buildGenericSchemaAstTree(entity, {
+      context: (info) => createSchemaContext(info),
+    });
 
-    // Build node maps for efficient lookup
     let nodeMap = HashMap.empty<string, SchemaASTNode>();
     let pathMap = HashMap.empty<string, SchemaASTNode>();
 
-    const addNodeToMaps = (node: SchemaASTNode): void => {
-      const pathKey = node.path.join(".");
-      const entityIdKey = pipe(
-        node.context.entityId,
-        Option.map((id) => id),
-        Option.getOrElse(() => pathKey)
-      );
-
-      nodeMap = HashMap.set(nodeMap, entityIdKey, node);
+    const addNode = (node: SchemaASTNode): void => {
+      const pathKey = formatPath(node.path);
+      const entityKey = Option.getOrElse(node.context.entityId, () => pathKey);
+      nodeMap = HashMap.set(nodeMap, entityKey, node);
       pathMap = HashMap.set(pathMap, pathKey, node);
-
-      node.children.forEach(addNodeToMaps);
+      node.children.forEach(addNode);
     };
 
-    addNodeToMaps(root);
+    addNode(genericTree.root);
 
     return {
-      _tag: "SchemaASTTree",
-      root,
+      root: genericTree.root,
       nodeMap,
       pathMap,
     };
   });
-};
 
-// ============================================================================
-// CONTEXT EXTRACTION AND ANALYSIS
-// ============================================================================
-
-/**
- * Extract context for a specific path in the schema tree
- */
 export const extractContextAtPath = (
   tree: SchemaASTTree,
   path: ReadonlyArray<PropertyKey>
-): Option.Option<SchemaContext> => {
-  const pathKey = path.join(".");
-  return pipe(
-    HashMap.get(tree.pathMap, pathKey),
-    Option.map((node) => node.context)
-  );
-};
+): Option.Option<SchemaContext> =>
+  pipe(HashMap.get(tree.pathMap, formatPath(path)), Option.map((node) => node.context));
 
-/**
- * Find all nodes with a specific semantic type
- */
 export const findNodesBySemanticType = (
   tree: SchemaASTTree,
   semanticType: string
 ): ReadonlyArray<SchemaASTNode> => {
   const results: Array<SchemaASTNode> = [];
+  const stack: Array<SchemaASTNode> = [tree.root];
 
-  const traverse = (node: SchemaASTNode): void => {
-    if (Option.getOrNull(node.context.semanticType) === semanticType) {
+  while (stack.length > 0) {
+    const node = stack.pop()!;
+    if (
+      Option.getOrElse(node.context.semanticType, () => deriveSemanticFromAst(node.ast)) ===
+      semanticType
+    ) {
       results.push(node);
     }
-    node.children.forEach(traverse);
-  };
+    for (let i = 0; i < node.children.length; i += 1) {
+      stack.push(node.children[i]);
+    }
+  }
 
-  traverse(tree.root);
   return results;
 };
 
-/**
- * Find all entity nodes in the tree
- */
 export const findEntityNodes = (
   tree: SchemaASTTree
 ): ReadonlyArray<SchemaASTNode> => {
   const results: Array<SchemaASTNode> = [];
+  const stack: Array<SchemaASTNode> = [tree.root];
 
-  const traverse = (node: SchemaASTNode): void => {
+  while (stack.length > 0) {
+    const node = stack.pop()!;
     if (Option.isSome(node.context.entityId)) {
       results.push(node);
     }
-    node.children.forEach(traverse);
-  };
+    for (let i = 0; i < node.children.length; i += 1) {
+      stack.push(node.children[i]);
+    }
+  }
 
-  traverse(tree.root);
   return results;
 };
 
-/**
- * Find all entity field nodes in the tree
- */
 export const findEntityFieldNodes = (
   tree: SchemaASTTree
 ): ReadonlyArray<SchemaASTNode> => {
   const results: Array<SchemaASTNode> = [];
+  const stack: Array<SchemaASTNode> = [tree.root];
 
-  const traverse = (node: SchemaASTNode): void => {
+  while (stack.length > 0) {
+    const node = stack.pop()!;
     if (Option.isSome(node.context.entityFieldId)) {
       results.push(node);
     }
-    node.children.forEach(traverse);
-  };
+    for (let i = 0; i < node.children.length; i += 1) {
+      stack.push(node.children[i]);
+    }
+  }
 
-  traverse(tree.root);
   return results;
 };
 
-// ============================================================================
-// PROMPT GENERATION FROM SCHEMA CONTEXT
-// ============================================================================
-
-/**
- * Generate a prompt context from a schema node
- */
 export const generatePromptContext = (node: SchemaASTNode): string => {
   const context = node.context;
-  const path = node.path.join(".");
-
+  const path = formatPath(node.path);
   const parts: Array<string> = [];
 
-  // Add entity information
   Option.match(context.entityId, {
     onNone: () => {},
     onSome: (entityId) => parts.push(`Entity: ${entityId}`),
@@ -608,33 +154,49 @@ export const generatePromptContext = (node: SchemaASTNode): string => {
     onSome: (parentId) => parts.push(`Parent: ${parentId}`),
   });
 
-  // Add path
   parts.push(`Path: ${path}`);
 
-  // Add description
+  Option.match(context.title, {
+    onNone: () => {},
+    onSome: (title) => parts.push(`Title: ${title}`),
+  });
+
   Option.match(context.description, {
     onNone: () => {},
     onSome: (desc) => parts.push(`Description: ${desc}`),
   });
 
-  // Add semantic type
   Option.match(context.semanticType, {
     onNone: () => {},
     onSome: (type) => parts.push(`Type: ${type}`),
   });
 
+  Option.match(context.annotations.role, {
+    onNone: () => {},
+    onSome: (role) => parts.push(`Role: ${role.role}`),
+  });
+
+  Option.match(context.annotations.provenance, {
+    onNone: () => {},
+    onSome: (prov) => {
+      if (prov.source !== undefined) {
+        parts.push(`Source: ${prov.source}`);
+      }
+      if (prov.comment !== undefined) {
+        parts.push(`Comment: ${prov.comment}`);
+      }
+    },
+  });
+
   return parts.join("\n");
 };
 
-/**
- * Generate a comprehensive prompt for a schema subtree
- */
 export const generateSchemaPrompt = (
   tree: SchemaASTTree,
   rootPath: ReadonlyArray<PropertyKey> = []
 ): string => {
   const rootNode = pipe(
-    HashMap.get(tree.pathMap, rootPath.join(".")),
+    HashMap.get(tree.pathMap, formatPath(rootPath)),
     Option.getOrElse(() => tree.root)
   );
 
@@ -651,3 +213,113 @@ export const generateSchemaPrompt = (
 
   return parts.join("\n");
 };
+
+const createSchemaContext = (
+  info: BuildContext<SchemaContext>
+): SchemaContext => {
+  const annotationsContext = Annotations.getContext(info.annotations);
+  const entityId = Option.fromNullable(
+    info.annotations[EntityIdAnnotationId] as EntityId | undefined
+  );
+  const entityFieldId = Option.fromNullable(
+    info.annotations[EntityFieldIdAnnotationId] as EntityFieldId | undefined
+  );
+  const parentEntityId = Option.fromNullable(
+    info.annotations[ParentEntityIdAnnotationId] as EntityId | undefined
+  );
+  const identifier = Option.fromNullable<SchemaAST.IdentifierAnnotation>(
+    info.annotations[SchemaAST.IdentifierAnnotationId] as
+      | SchemaAST.IdentifierAnnotation
+      | undefined
+  );
+  const title = pipe(
+    annotationsContext.core,
+    Option.flatMap((core) => Option.fromNullable(core.title)),
+    Option.orElse(() =>
+      Option.fromNullable(
+        info.annotations[SchemaAST.TitleAnnotationId] as string | undefined
+      )
+    )
+  );
+  const description = pipe(
+    annotationsContext.core,
+    Option.flatMap((core) => Option.fromNullable(core.description)),
+    Option.orElse(() =>
+      Option.fromNullable(
+        info.annotations[SchemaAST.DescriptionAnnotationId] as string | undefined
+      )
+    )
+  );
+  const semanticFromAnnotations = pipe(
+    annotationsContext.semantic,
+    Option.map((semantic) => semantic.semanticType)
+  );
+  const semanticType = Option.orElse(semanticFromAnnotations, () =>
+    Option.some(deriveSemanticFromAst(info.ast))
+  );
+
+  return {
+    entityId,
+    entityFieldId,
+    parentEntityId,
+    identifier,
+    title,
+    description,
+    semanticType,
+    annotations: annotationsContext,
+  };
+};
+
+const deriveSemanticFromAst = (ast: SchemaAST.AST): string => {
+  switch (ast._tag) {
+    case "TypeLiteral":
+      return "struct";
+    case "Union":
+      return "union";
+    case "TupleType":
+      return "tuple";
+    case "Refinement":
+      return "refinement";
+    case "Transformation":
+      return "transformation";
+    case "Suspend":
+      return "recursive";
+    case "StringKeyword":
+      return "string";
+    case "NumberKeyword":
+      return "number";
+    case "BooleanKeyword":
+      return "boolean";
+    case "BigIntKeyword":
+      return "bigint";
+    case "SymbolKeyword":
+      return "symbol";
+    case "ObjectKeyword":
+      return "object";
+    case "Literal":
+      return "literal";
+    case "UndefinedKeyword":
+      return "undefined";
+    case "VoidKeyword":
+      return "void";
+    case "NeverKeyword":
+      return "never";
+    case "UnknownKeyword":
+      return "unknown";
+    case "AnyKeyword":
+      return "any";
+    case "TemplateLiteral":
+      return "template_literal";
+    case "Enums":
+      return "enum";
+    case "UniqueSymbol":
+      return "unique_symbol";
+    case "Declaration":
+      return "declaration";
+    default:
+      return ast._tag;
+  }
+};
+
+const formatPath = (path: ReadonlyArray<PropertyKey>): string =>
+  path.map((segment) => (typeof segment === "symbol" ? segment.description ?? segment.toString() : String(segment))).join(".");
