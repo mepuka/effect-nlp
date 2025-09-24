@@ -16,6 +16,7 @@ import {
   String,
 } from "effect";
 import { Doc } from "@effect/printer";
+import { Annotations } from "./Annotations.js";
 
 // ============================================================================
 // ANNOTATION TYPES (using Effect's built-in types)
@@ -31,8 +32,10 @@ export interface SchemaContext {
   readonly documentation: Option.Option<SchemaAST.DocumentationAnnotation>;
   readonly examples: Option.Option<SchemaAST.ExamplesAnnotation<unknown>>;
   readonly default: Option.Option<SchemaAST.DefaultAnnotation<unknown>>;
-  readonly semanticType: Option.Option<string>;
-  readonly role: Option.Option<string>;
+  readonly role: Option.Option<Annotations.Role>;
+  readonly semantic: Option.Option<Annotations.Semantic>;
+  readonly provenance: Option.Option<Annotations.Provenance>;
+  readonly core: Option.Option<Annotations.Core>;
   readonly metadata: HashMap.HashMap<string, unknown>;
 }
 
@@ -41,68 +44,60 @@ export interface SchemaContext {
 // ============================================================================
 
 /**
- * Extract built-in annotation using Option combinators
- */
-const extractBuiltInAnnotation = <T>(
-  annotations: SchemaAST.Annotations,
-  annotationId: symbol
-): Option.Option<T> => {
-  return Option.fromNullable(annotations[annotationId] as T | undefined);
-};
-
-/**
- * Extract custom string annotation
- */
-const extractCustomStringAnnotation = (
-  annotations: SchemaAST.Annotations,
-  key: string
-): Option.Option<string> => {
-  return Option.fromNullable(annotations[key] as string | undefined);
-};
-
-/**
  * Extract schema context from annotations using Effect's built-in functions
  */
 export const extractSchemaContext = (
   annotations: SchemaAST.Annotations
 ): SchemaContext => {
-  // Extract built-in annotations using Option combinators
-  const builtInAnnotations = {
-    identifier: extractBuiltInAnnotation<SchemaAST.IdentifierAnnotation>(
-      annotations,
-      SchemaAST.IdentifierAnnotationId
-    ),
-    title: extractBuiltInAnnotation<SchemaAST.TitleAnnotation>(
-      annotations,
-      SchemaAST.TitleAnnotationId
-    ),
-    description: extractBuiltInAnnotation<SchemaAST.DescriptionAnnotation>(
-      annotations,
-      SchemaAST.DescriptionAnnotationId
-    ),
-    documentation: extractBuiltInAnnotation<SchemaAST.DocumentationAnnotation>(
-      annotations,
-      SchemaAST.DocumentationAnnotationId
-    ),
-    examples: extractBuiltInAnnotation<SchemaAST.ExamplesAnnotation<unknown>>(
-      annotations,
-      SchemaAST.ExamplesAnnotationId
-    ),
-    default: extractBuiltInAnnotation<SchemaAST.DefaultAnnotation<unknown>>(
-      annotations,
-      SchemaAST.DefaultAnnotationId
-    ),
-    semanticType: extractCustomStringAnnotation(annotations, "semanticType"),
-    role: extractCustomStringAnnotation(annotations, "role"),
-  };
+  const identifier = Option.fromNullable<SchemaAST.IdentifierAnnotation>(
+    annotations[SchemaAST.IdentifierAnnotationId] as
+      | SchemaAST.IdentifierAnnotation
+      | undefined
+  );
+  const defaultValue = Option.fromNullable<SchemaAST.DefaultAnnotation<unknown>>(
+    annotations[SchemaAST.DefaultAnnotationId] as
+      | SchemaAST.DefaultAnnotation<unknown>
+      | undefined
+  );
+
+  const core = Annotations.getCore(annotations);
+  const role = Annotations.getRole(annotations);
+  const semantic = Annotations.getSemantic(annotations);
+  const provenance = Annotations.getProvenance(annotations);
+
+  const title = pipe(
+    core,
+    Option.flatMap((value) => Option.fromNullable(value.title))
+  );
+  const description = pipe(
+    core,
+    Option.flatMap((value) => Option.fromNullable(value.description))
+  );
+  const documentation = pipe(
+    core,
+    Option.flatMap((value) => Option.fromNullable(value.documentation))
+  );
+  const examples = Option.fromNullable<SchemaAST.ExamplesAnnotation<unknown>>(
+    annotations[SchemaAST.ExamplesAnnotationId] as
+      | SchemaAST.ExamplesAnnotation<unknown>
+      | undefined
+  );
 
   // Extract metadata using Record combinators
+  const reservedKeys = new Set([
+    "identifier",
+    "title",
+    "description",
+    "examples",
+    "default",
+    "documentation",
+  ]);
   const metadata = pipe(
     annotations,
     Record.filter(
       (_, key) =>
         typeof key === "string" &&
-        !Object.values(SchemaAST).includes(key as any)
+        !reservedKeys.has(key)
     ),
     Record.map((value) => value),
     Object.entries,
@@ -113,7 +108,16 @@ export const extractSchemaContext = (
   );
 
   return {
-    ...builtInAnnotations,
+    identifier,
+    title,
+    description,
+    documentation,
+    examples,
+    default: defaultValue,
+    role,
+    semantic,
+    provenance,
+    core,
     metadata,
   };
 };
@@ -189,10 +193,10 @@ export const schemaToDoc = (
             })
           ),
           pipe(
-            context.semanticType,
+            context.semantic,
             Option.match({
               onNone: () => "Schema",
-              onSome: (type) => type,
+              onSome: (semantic) => semantic.semanticType,
             })
           ),
         ],
@@ -400,10 +404,10 @@ export const contextToDoc = (context: SchemaContext): Doc.Doc<never> => {
         })
       ),
       pipe(
-        context.semanticType,
+        context.semantic,
         Option.match({
           onNone: () => "Schema",
-          onSome: (type) => type,
+          onSome: (semantic) => semantic.semanticType,
         })
       ),
     ],
@@ -424,8 +428,40 @@ export const contextToDoc = (context: SchemaContext): Doc.Doc<never> => {
         Doc.hsep([
           Doc.text(pipe("role", String.padEnd(20))),
           Doc.text(TYPE_SEPARATOR),
-          Doc.text(role),
+          Doc.text(role.role),
         ]),
+    })
+  );
+
+  const provenanceAnnotation = pipe(
+    context.provenance,
+    Option.match({
+      onNone: () => Doc.empty,
+      onSome: (prov) => {
+        const docs: Array<Doc.Doc<never>> = [];
+
+        if (prov.source !== undefined) {
+          docs.push(
+            Doc.hsep([
+              Doc.text(pipe("source", String.padEnd(20))),
+              Doc.text(TYPE_SEPARATOR),
+              Doc.text(prov.source),
+            ])
+          );
+        }
+
+        if (prov.comment !== undefined) {
+          docs.push(
+            Doc.hsep([
+              Doc.text(pipe("comment", String.padEnd(20))),
+              Doc.text(TYPE_SEPARATOR),
+              Doc.text(prov.comment),
+            ])
+          );
+        }
+
+        return docs.length > 0 ? Doc.vsep(docs) : Doc.empty;
+      },
     })
   );
 
@@ -477,7 +513,13 @@ export const contextToDoc = (context: SchemaContext): Doc.Doc<never> => {
 
   // Beautiful composition with consistent spacing
   return pipe(
-    [schemaHeader, roleAnnotation, description, metadataProperties],
+    [
+      schemaHeader,
+      roleAnnotation,
+      provenanceAnnotation,
+      description,
+      metadataProperties,
+    ],
     Chunk.fromIterable,
     Chunk.filter((doc) => doc !== Doc.empty),
     Chunk.toArray,

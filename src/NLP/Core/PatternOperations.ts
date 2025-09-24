@@ -19,7 +19,6 @@ import {
   type WinkPOSTag,
   type WinkEntityType,
 } from "./Pattern.js";
-import { make } from "./PatternBuilders.js";
 
 // ============================================================================
 // PREDICATE-BASED PATTERN VALIDATION AND FILTERING

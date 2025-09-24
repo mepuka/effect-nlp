@@ -2,7 +2,7 @@
  * Simple AST Traversal Test - Debug version
  */
 
-import { Schema, Effect, pipe, Console } from "effect";
+import { Schema, Effect, Option, Console } from "effect";
 import { buildSchemaASTTree } from "../Extraction/ASTTraverse.js";
 
 // Simple test schema
@@ -22,10 +22,26 @@ const debugASTTraversal = Effect.gen(function* (_) {
   const tree = yield* _(buildSchemaASTTree(TestSchema));
   
   yield* _(Console.log("✓ Schema AST Tree built successfully"));
-  yield* _(Console.log(`Root node identifier: ${tree.root.context.identifier}`));
-  yield* _(Console.log(`Root node title: ${tree.root.context.title}`));
-  yield* _(Console.log(`Root node description: ${tree.root.context.description}`));
-  yield* _(Console.log(`Root node semantic type: ${tree.root.context.semanticType}`));
+  const core = tree.root.context.annotations.core;
+  yield* _(
+    Console.log(
+      `Root node title: ${Option.getOrElse(core, () => ({ title: "" })).title ?? ""}`
+    )
+  );
+  yield* _(
+    Console.log(
+      `Root node description: ${
+        Option.getOrElse(core, () => ({ description: "" })).description ?? ""
+      }`
+    )
+  );
+  yield* _(
+    Console.log(
+      `Root node semantic type: ${
+        Option.getOrElse(tree.root.context.semanticType, () => "unknown")
+      }`
+    )
+  );
   yield* _(Console.log(`Root node path: ${tree.root.path.join(".")}`));
   yield* _(Console.log(`Root node children count: ${tree.root.children.length}`));
   yield* _(Console.log(""));
@@ -34,7 +50,9 @@ const debugASTTraversal = Effect.gen(function* (_) {
   tree.root.children.forEach((child, index) => {
     console.log(`Child ${index + 1}:`);
     console.log(`  Path: ${child.path.join(".")}`);
-    console.log(`  Role: ${child.context.role}`);
+    console.log(
+      `  Role: ${Option.getOrElse(child.context.annotations.role, () => ({ role: "" })).role}`
+    );
     console.log(`  Type: ${child.context.semanticType}`);
     console.log("");
   });

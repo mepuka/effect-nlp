@@ -2,7 +2,8 @@
  * AST Traversal Corrected Test - Proper usage of SchemaAST.getCompiler and Match API
  */
 
-import { Schema, Effect, pipe, Console, Option, HashMap } from "effect";
+import { Schema, Effect, pipe, Console, Option } from "effect";
+import { Annotations } from "../Extraction/Annotations.js";
 import {
   buildSchemaASTTree,
   generateSchemaPrompt,
@@ -15,90 +16,145 @@ import {
 // ============================================================================
 
 // Person schema with proper annotations
-const PersonSchema = Schema.Struct({
-  name: Schema.String.annotations({
-    title: "Full Name",
-    description: "The person's full name",
-    examples: ["John Smith", "Jane Doe"],
+const PersonSchema = pipe(
+  Schema.Struct({
+    name: pipe(
+      Schema.String,
+      Annotations.withCore({
+        title: "Full Name",
+        description: "The person's full name",
+        examples: ["John Smith", "Jane Doe"],
+      })
+    ),
+    age: pipe(
+      Schema.Number,
+      Annotations.withCore({
+        title: "Age",
+        description: "Age in years",
+        constraints: ["Must be positive", "Must be less than 150"],
+      })
+    ),
+    email: pipe(
+      Schema.String,
+      Annotations.withCore({
+        title: "Email Address",
+        description: "Primary email contact",
+        examples: ["john@example.com", "jane@example.com"],
+      })
+    ),
   }),
-  age: Schema.Number.annotations({
-    title: "Age",
-    description: "Age in years",
-    constraints: ["Must be positive", "Must be less than 150"],
+  Annotations.withMetadata({
+    core: {
+      title: "Person",
+      description: "A person with basic contact information",
+      examples: ["John Smith", "Jane Doe"],
+    },
+    semantic: { semanticType: "entity" },
+    role: { role: "data_model" },
   }),
-  email: Schema.String.annotations({
-    title: "Email Address",
-    description: "Primary email contact",
-    examples: ["john@example.com", "jane@example.com"],
-  }),
-}).annotations({
-  identifier: "Person",
-  title: "Person",
-  description: "A person with basic contact information",
-  semanticType: "entity",
-  role: "data_model",
-});
+  Schema.annotations({ identifier: "Person" })
+);
 
 // Address schema with annotations
-const AddressSchema = Schema.Struct({
-  street: Schema.String.annotations({
-    title: "Street Address",
-    description: "Street number and name",
+const AddressSchema = pipe(
+  Schema.Struct({
+    street: pipe(
+      Schema.String,
+      Annotations.withCore({
+        title: "Street Address",
+        description: "Street number and name",
+      })
+    ),
+    city: pipe(
+      Schema.String,
+      Annotations.withCore({
+        title: "City",
+        description: "City name",
+      })
+    ),
+    zipCode: pipe(
+      Schema.String,
+      Annotations.withCore({
+        title: "ZIP Code",
+        description: "Postal code",
+      })
+    ),
   }),
-  city: Schema.String.annotations({
-    title: "City",
-    description: "City name",
+  Annotations.withMetadata({
+    core: {
+      title: "Address",
+      description: "A physical mailing address",
+    },
+    semantic: { semanticType: "location" },
+    role: { role: "data_model" },
   }),
-  zipCode: Schema.String.annotations({
-    title: "ZIP Code",
-    description: "Postal code",
-  }),
-}).annotations({
-  identifier: "Address",
-  title: "Address",
-  description: "A physical mailing address",
-  semanticType: "location",
-  role: "data_model",
-});
+  Schema.annotations({ identifier: "Address" })
+);
 
 // Organization schema with nested schemas
-const OrganizationSchema = Schema.Struct({
-  name: Schema.String.annotations({
-    title: "Organization Name",
-    description: "Legal name of the organization",
+const OrganizationSchema = pipe(
+  Schema.Struct({
+    name: pipe(
+      Schema.String,
+      Annotations.withCore({
+        title: "Organization Name",
+        description: "Legal name of the organization",
+      })
+    ),
+    industry: pipe(
+      Schema.String,
+      Annotations.withCore({
+        title: "Industry",
+        description: "Primary business sector",
+      })
+    ),
+    founded: pipe(
+      Schema.Number,
+      Annotations.withCore({
+        title: "Founded Year",
+        description: "Year the organization was established",
+      })
+    ),
+    ceo: pipe(
+      PersonSchema,
+      Annotations.withMetadata({
+        core: {
+          description: "Chief Executive Officer of the organization",
+        },
+        role: { role: "ceo_reference" },
+      })
+    ),
+    headquarters: pipe(
+      AddressSchema,
+      Annotations.withMetadata({
+        core: { description: "Primary business address" },
+        role: { role: "headquarters_reference" },
+      })
+    ),
+    employees: pipe(
+      Schema.Array(PersonSchema),
+      Annotations.withMetadata({
+        core: { description: "List of all employees" },
+        role: { role: "employee_list" },
+      })
+    ),
   }),
-  industry: Schema.String.annotations({
-    title: "Industry",
-    description: "Primary business sector",
+  Annotations.withMetadata({
+    core: {
+      title: "Organization",
+      description:
+        "A business organization with leadership, location, and staff",
+      examples: ["Acme Corp", "TechStart Inc"],
+      constraints: [
+        "Must have at least one employee",
+        "Founded year must be valid",
+      ],
+    },
+    semantic: { semanticType: "entity" },
+    role: { role: "aggregate_root" },
   }),
-  founded: Schema.Number.annotations({
-    title: "Founded Year",
-    description: "Year the organization was established",
-  }),
-  ceo: PersonSchema.annotations({
-    role: "ceo_reference",
-    description: "Chief Executive Officer of the organization",
-  }),
-  headquarters: AddressSchema.annotations({
-    role: "headquarters_reference",
-    description: "Primary business address",
-  }),
-  employees: Schema.Array(PersonSchema).annotations({
-    role: "employee_list",
-    description: "List of all employees",
-  }),
-}).annotations({
-  identifier: "Organization",
-  title: "Organization",
-  description: "A business organization with leadership, location, and staff",
-  semanticType: "entity",
-  role: "aggregate_root",
-  examples: ["Acme Corp", "TechStart Inc"],
-  constraints: [
-    "Must have at least one employee",
-    "Founded year must be valid",
-  ],
-});
+  Schema.annotations({ identifier: "Organization" })
+);
 
 // ============================================================================
 // TEST FUNCTION

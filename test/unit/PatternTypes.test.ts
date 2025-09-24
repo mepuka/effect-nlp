@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { Chunk, Data, Schema, Option } from "effect";
+import { Chunk, Data, Schema } from "effect";
 import {
   Pattern,
   POSPatternElement,

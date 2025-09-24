@@ -12,10 +12,8 @@ import {
   EntityIdAnnotationId,
   EntityFieldIdAnnotationId,
   ParentEntityIdAnnotationId,
-  isEntityId,
-  isEntityField,
-  isEntityPropertySignature,
 } from "./Entity.js";
+import { Annotations } from "./Annotations.js";
 
 // ============================================================================
 // CORE TYPES FOR SCHEMA AST REPRESENTATION
@@ -41,9 +39,11 @@ export interface SchemaASTNode {
  */
 export interface SchemaContext {
   readonly entityId: Option.Option<EntityId>;
-  readonly entityFieldId: EntityFieldId;
-  readonly parentEntityId: EntityId;
+  readonly entityFieldId: Option.Option<EntityFieldId>;
+  readonly parentEntityId: Option.Option<EntityId>;
   readonly description: Option.Option<string>;
+  readonly semanticType: Option.Option<string>;
+  readonly annotations: Annotations.Context;
 }
 
 /**
@@ -71,12 +71,19 @@ const extractEntityContextFromAnnotations = (
     annotations[EntityIdAnnotationId] as EntityId
   );
   const entityFieldId = Option.fromNullable(
-    annotations[EntityFieldIdAnnotationId] as EntityFieldId
+    annotations[EntityFieldIdAnnotationId] as EntityFieldId | undefined
   );
   const parentEntityId = Option.fromNullable(
-    annotations[ParentEntityIdAnnotationId] as EntityId
+    annotations[ParentEntityIdAnnotationId] as EntityId | undefined
   );
-  const description = Option.fromNullable(annotations["description"] as string);
+  const annotationContext = Annotations.getContext(annotations);
+  const description = pipe(
+    annotationContext.core,
+    Option.flatMap((core) => Option.fromNullable(core.description)),
+    Option.orElse(() =>
+      Option.fromNullable(annotations["description"] as string | undefined)
+    )
+  );
 
   return {
     entityId,
@@ -84,6 +91,7 @@ const extractEntityContextFromAnnotations = (
     parentEntityId,
     description,
     semanticType: Option.none(),
+    annotations: annotationContext,
   };
 };
 
