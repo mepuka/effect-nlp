@@ -16,129 +16,153 @@ import {
   filterAnnotations,
   createAnnotatedSchema,
 } from "../Extraction/AnnotationParser.js";
+import { Annotations } from "../Extraction/Annotations.js";
 
 // ============================================================================
 // CREATE TEST SCHEMA WITH ANNOTATIONS
 // ============================================================================
 
 // Deep nested schema for testing
-const AddressSchema = Schema.Struct({
-  street: Schema.String.pipe(
-    Schema.annotations({
-      identifier: "street",
-      title: "Street",
-    })
-  ),
-  city: Schema.String.pipe(
-    Schema.annotations({
-      identifier: "city",
-      title: "City",
-    })
-  ),
-  country: Schema.String.pipe(
-    Schema.annotations({
-      identifier: "country",
-      title: "Country",
-    })
-  ),
-}).annotations({
-  identifier: "AddressSchema",
-  title: "Address",
-  semanticType: "address",
-});
-
-const ContactSchema = Schema.Struct({
-  phone: Schema.String.pipe(
-    Schema.annotations({
-      identifier: "phone",
-      title: "Phone",
-    })
-  ),
-  email: Schema.String.pipe(
-    Schema.annotations({
-      identifier: "email",
-      title: "Email",
-    })
-  ),
-}).annotations({
-  identifier: "ContactSchema",
-  title: "Contact",
-  semanticType: "contact",
-});
-
-const PersonSchema = Schema.Struct({
-  name: Schema.String.pipe(
-    Schema.annotations({
-      identifier: "name",
-      title: "Name",
-    })
-  ),
-  age: Schema.Number.pipe(
-    Schema.annotations({
-      identifier: "age",
-      title: "Age",
-    })
-  ),
-  address: AddressSchema.pipe(
-    Schema.annotations({
-      identifier: "address",
+const AddressSchema = pipe(
+  Schema.Struct({
+    street: pipe(
+      Schema.String,
+      Annotations.withCore({
+        title: "Street",
+      }),
+      Schema.annotations({ identifier: "street" })
+    ),
+    city: pipe(
+      Schema.String,
+      Annotations.withCore({
+        title: "City",
+      }),
+      Schema.annotations({ identifier: "city" })
+    ),
+    country: pipe(
+      Schema.String,
+      Annotations.withCore({
+        title: "Country",
+      }),
+      Schema.annotations({ identifier: "country" })
+    ),
+  }),
+  Annotations.withMetadata({
+    core: {
       title: "Address",
-    })
-  ),
-  contacts: Schema.Array(ContactSchema).pipe(
-    Schema.annotations({
-      identifier: "contacts",
-      title: "Contacts",
-    })
-  ),
-  tags: Schema.Array(Schema.String).pipe(
-    Schema.annotations({
-      identifier: "tags",
-      title: "Tags",
-    })
-  ),
-  metadata: Schema.Record({ key: Schema.String, value: Schema.String }).pipe(
-    Schema.annotations({
-      identifier: "metadata",
-      title: "Metadata",
-    })
-  ),
-}).annotations({
-  identifier: "PersonSchema",
-  title: "Person",
-  semanticType: "person",
-});
+    },
+    semantic: { semanticType: "address" },
+  }),
+  Schema.annotations({ identifier: "AddressSchema" })
+);
 
-const OrganizationSchema = Schema.Struct({
-  name: Schema.String.pipe(
-    Schema.annotations({
-      identifier: "name",
+const ContactSchema = pipe(
+  Schema.Struct({
+    phone: pipe(
+      Schema.String,
+      Annotations.withCore({ title: "Phone" }),
+      Schema.annotations({ identifier: "phone" })
+    ),
+    email: pipe(
+      Schema.String,
+      Annotations.withCore({ title: "Email" }),
+      Schema.annotations({ identifier: "email" })
+    ),
+  }),
+  Annotations.withMetadata({
+    core: {
+      title: "Contact",
+    },
+    semantic: { semanticType: "contact" },
+  }),
+  Schema.annotations({ identifier: "ContactSchema" })
+);
+
+const PersonSchema = pipe(
+  Schema.Struct({
+    name: pipe(
+      Schema.String,
+      Annotations.withCore({ title: "Name" }),
+      Schema.annotations({ identifier: "name" })
+    ),
+    age: pipe(
+      Schema.Number,
+      Annotations.withCore({ title: "Age" }),
+      Schema.annotations({ identifier: "age" })
+    ),
+    address: pipe(
+      AddressSchema,
+      Annotations.withMetadata({
+        core: { title: "Address" },
+      }),
+      Schema.annotations({ identifier: "address" })
+    ),
+    contacts: pipe(
+      Schema.Array(ContactSchema),
+      Annotations.withMetadata({
+        core: { title: "Contacts" },
+      }),
+      Schema.annotations({ identifier: "contacts" })
+    ),
+    tags: pipe(
+      Schema.Array(Schema.String),
+      Annotations.withMetadata({
+        core: { title: "Tags" },
+      }),
+      Schema.annotations({ identifier: "tags" })
+    ),
+    metadata: pipe(
+      Schema.Record({ key: Schema.String, value: Schema.String }),
+      Annotations.withMetadata({
+        core: { title: "Metadata" },
+      }),
+      Schema.annotations({ identifier: "metadata" })
+    ),
+  }),
+  Annotations.withMetadata({
+    core: {
+      title: "Person",
+    },
+    semantic: { semanticType: "person" },
+  }),
+  Schema.annotations({ identifier: "PersonSchema" })
+);
+
+const OrganizationSchema = pipe(
+  Schema.Struct({
+    name: pipe(
+      Schema.String,
+      Annotations.withCore({ title: "Organization" }),
+      Schema.annotations({ identifier: "name" })
+    ),
+    address: pipe(
+      Schema.String,
+      Annotations.withCore({ title: "Address" }),
+      Schema.annotations({ identifier: "address" })
+    ),
+    ceo: pipe(
+      PersonSchema,
+      Annotations.withMetadata({
+        core: { title: "CEO" },
+      }),
+      Schema.annotations({ identifier: "ceo" })
+    ),
+    departments: pipe(
+      Schema.Array(PersonSchema),
+      Annotations.withMetadata({
+        core: { title: "Departments" },
+      }),
+      Schema.annotations({ identifier: "departments" })
+    ),
+  }),
+  Annotations.withMetadata({
+    core: {
       title: "Organization",
-    })
-  ),
-  address: Schema.String.pipe(
-    Schema.annotations({
-      identifier: "address",
-      title: "Address",
-    })
-  ),
-  ceo: PersonSchema.pipe(
-    Schema.annotations({
-      identifier: "ceo",
-      title: "CEO",
-    })
-  ),
-  departments: Schema.Array(PersonSchema).pipe(
-    Schema.annotations({
-      identifier: "departments",
-      title: "Departments",
-    })
-  ),
-}).annotations({
-  identifier: "OrganizationSchema",
-  title: "Organization",
-  semanticType: "organization",
-});
+    },
+    semantic: { semanticType: "organization" },
+  }),
+  Schema.annotations({ identifier: "OrganizationSchema" })
+);
 
 // ============================================================================
 // TEST FUNCTION

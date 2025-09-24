@@ -1,7 +1,6 @@
 import { Effect, Schema, Console } from "effect";
 import {
   buildSchemaASTTree,
-  extractContextAtPath,
   generatePromptContext,
 } from "../Extraction/ASTTraverse.js";
 import {

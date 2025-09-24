@@ -1,4 +1,4 @@
-import { Effect, Schema, pipe, Console } from "effect";
+import { Effect, Schema, Console } from "effect";
 import { MakeEntity } from "../Extraction/Entity.js";
 
 // ============================================================================

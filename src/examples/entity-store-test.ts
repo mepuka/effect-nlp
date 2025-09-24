@@ -8,15 +8,7 @@
  */
 
 import { Schema, Effect, Console, pipe, Option } from "effect";
-import { KeyValueStore, layerMemory } from "@effect/platform/KeyValueStore";
-import {
-  MakeEntity,
-  MakeEntityId,
-  MakeSchemaId,
-  EntityId,
-  SchemaId,
-  EntityHash,
-} from "../Extraction/Entity.js";
+import { MakeEntity, EntityHash } from "../Extraction/Entity.js";
 import {
   EntityStoreService,
   storeEntity,

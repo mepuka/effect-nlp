@@ -1,11 +1,5 @@
 import { Effect, Schema, Console } from "effect";
-import {
-  MakeEntitySchema,
-  MakeEntityId,
-  MakeSchemaId,
-  EntityId,
-  SchemaId,
-} from "../Extraction/Entity.js";
+import { MakeEntitySchema, MakeEntityId, MakeSchemaId } from "../Extraction/Entity.js";
 
 const debugEntityAnnotations = () =>
   Effect.gen(function* () {
@@ -69,5 +63,4 @@ const debugEntityAnnotations = () =>
 
 // Run the debug test
 Effect.runPromise(debugEntityAnnotations()).catch(console.error);
-
 
