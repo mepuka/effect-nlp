@@ -272,12 +272,34 @@ export const createEntityFieldMatch = (): SchemaAST.Match<Array<string>> => ({
 /**
  * Entity interface - a schema with entity-specific annotations
  * This creates a type-safe DSL for entity schemas
+ *
+ * @template A - The decoded/type representation (must be a structured object)
+ * @template I - The encoded/input representation (defaults to A)
+ * @template R - The context/requirements type
  */
 export type Entity<
-  A extends Readonly<Record<string, unknown>> | ReadonlyArray<unknown>,
-  I extends Readonly<Record<string, unknown>> | ReadonlyArray<unknown>,
+  A extends Readonly<Record<string, unknown>>,
+  I extends Readonly<Record<string, unknown>> = A,
   R = never
 > = Schema.Schema<A, I, R>;
+
+/**
+ * Entity for array-based schemas (tuples, arrays)
+ *
+ * @template A - The decoded/type representation (must be an array)
+ * @template I - The encoded/input representation (defaults to A)
+ * @template R - The context/requirements type
+ */
+export type EntityArray<
+  A extends ReadonlyArray<unknown>,
+  I extends ReadonlyArray<unknown> = A,
+  R = never
+> = Schema.Schema<A, I, R>;
+
+/**
+ * Union type for all valid Entity schemas
+ */
+export type EntitySchema = Entity<any> | EntityArray<any>;
 
 /**
  * Type guard to ensure a schema has entity annotations
@@ -285,7 +307,7 @@ export type Entity<
  */
 export const hasEntityAnnotations = (
   schema: Schema.Schema.Any
-): schema is Entity<any, any, any> => {
+): schema is EntitySchema => {
   const entityId = SchemaAST.getAnnotation<EntityId>(EntityIdAnnotationId)(
     schema.ast
   );
@@ -318,8 +340,8 @@ export const validateEntitySchema = (
  * This ensures the schema is part of our entity universe with type-safe annotations
  */
 export const MakeEntitySchema = <
-  A extends Readonly<Record<string, unknown>> | ReadonlyArray<unknown>,
-  I extends Readonly<Record<string, unknown>> | ReadonlyArray<unknown>,
+  A extends Readonly<Record<string, unknown>>,
+  I extends Readonly<Record<string, unknown>> = A,
   R = never
 >(options: {
   schema: Schema.Schema<A, I, R>;
@@ -340,9 +362,35 @@ export const MakeEntitySchema = <
   ) as Entity<A, I, R>;
 };
 
+/**
+ * Create an EntityArray from array-based schemas with guaranteed entity annotations
+ */
+export const MakeEntityArraySchema = <
+  A extends ReadonlyArray<unknown>,
+  I extends ReadonlyArray<unknown> = A,
+  R = never
+>(options: {
+  schema: Schema.Schema<A, I, R>;
+  name: string;
+  entityId?: EntityId;
+}): EntityArray<A, I, R> => {
+  const entityId = options.entityId ?? MakeEntityId();
+
+  const stampedAST = stampASTRecursively(options.schema.ast, entityId);
+
+  return Schema.make(stampedAST).pipe(
+    Schema.annotations({
+      [EntityIdAnnotationId]: entityId,
+      [SchemaAST.IdentifierAnnotationId]: entityId,
+      [SchemaAST.DescriptionAnnotationId]: `Entity array schema: ${options.name}`,
+      schemaId: MakeSchemaId(options.name),
+    })
+  ) as EntityArray<A, I, R>;
+};
+
 export const isEntitySchema = <
-  A extends Readonly<Record<string, unknown>> | ReadonlyArray<unknown>,
-  I extends Readonly<Record<string, unknown>> | ReadonlyArray<unknown>,
+  A extends Readonly<Record<string, unknown>>,
+  I extends Readonly<Record<string, unknown>> = A,
   R = never
 >(
   schema: Schema.Schema.Any
@@ -350,9 +398,19 @@ export const isEntitySchema = <
   return hasEntityAnnotations(schema);
 };
 
+export const isEntityArraySchema = <
+  A extends ReadonlyArray<unknown>,
+  I extends ReadonlyArray<unknown> = A,
+  R = never
+>(
+  schema: Schema.Schema.Any
+): schema is EntityArray<A, I, R> => {
+  return hasEntityAnnotations(schema);
+};
+
 export const AnnotateId = <
-  A extends Readonly<Record<string, unknown>> | ReadonlyArray<unknown>,
-  I extends Readonly<Record<string, unknown>> | ReadonlyArray<unknown>,
+  A extends Readonly<Record<string, unknown>>,
+  I extends Readonly<Record<string, unknown>> = A,
   R = never
 >(
   entity: Entity<A, I, R>,
@@ -371,8 +429,8 @@ export const AnnotateId = <
 // ============================================================================
 
 export const EntityPropHashSet = <
-  A extends Readonly<Record<string, unknown>> | ReadonlyArray<unknown>,
-  I extends Readonly<Record<string, unknown>> | ReadonlyArray<unknown>,
+  A extends Readonly<Record<string, unknown>>,
+  I extends Readonly<Record<string, unknown>> = A,
   R = never
 >(
   entity: Entity<A, I, R>
@@ -383,8 +441,8 @@ export const EntityPropHashSet = <
 };
 
 export const EntityHash = <
-  A extends Readonly<Record<string, unknown>> | ReadonlyArray<unknown>,
-  I extends Readonly<Record<string, unknown>> | ReadonlyArray<unknown>,
+  A extends Readonly<Record<string, unknown>>,
+  I extends Readonly<Record<string, unknown>> = A,
   R = never
 >(
   entity: Entity<A, I, R>
@@ -401,8 +459,8 @@ export const EntityHash = <
  * Helper functions to extract entity metadata from schema
  */
 export const getEntityId = <
-  A extends Readonly<Record<string, unknown>> | ReadonlyArray<unknown>,
-  I extends Readonly<Record<string, unknown>> | ReadonlyArray<unknown>,
+  A extends Readonly<Record<string, unknown>>,
+  I extends Readonly<Record<string, unknown>> = A,
   R = never
 >(
   entity: Entity<A, I, R>
@@ -411,8 +469,8 @@ export const getEntityId = <
 };
 
 export const getSchemaId = <
-  A extends Readonly<Record<string, unknown>> | ReadonlyArray<unknown>,
-  I extends Readonly<Record<string, unknown>> | ReadonlyArray<unknown>,
+  A extends Readonly<Record<string, unknown>>,
+  I extends Readonly<Record<string, unknown>> = A,
   R = never
 >(
   entity: Entity<A, I, R>

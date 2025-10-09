@@ -6,7 +6,7 @@
 
 import { Layer } from "effect";
 import { WinkEngine, WinkEngineLive } from "../Wink/WinkEngine.js";
-import { WinkTokenizer, WinkTokenizerLive } from "../Wink/WinkTokenizer.js";
+import { WinkTokenization } from "../Wink/WinkTokenizer.js";
 
 /**
  * Base infrastructure layer - core engines and utilities
@@ -18,11 +18,16 @@ export const NLPBaseLive = WinkEngineLive;
  * Tokenization module layer
  * Depends on the base engine layer
  */
-export const TokenizationModuleLive = WinkTokenizerLive;
+export const TokenizationModuleLive = WinkTokenization.pipe(
+  Layer.provide(WinkEngineLive)
+);
 
-export const NLPAppLive = Layer.merge(NLPBaseLive, TokenizationModuleLive);
+export const NLPAppLive = Layer.mergeAll(
+  NLPBaseLive,
+  TokenizationModuleLive
+);
 
 /**
  * Convenience exports for direct service access
  */
-export { WinkEngine, WinkEngineLive, WinkTokenizer, WinkTokenizerLive };
+export { WinkEngine, WinkEngineLive };

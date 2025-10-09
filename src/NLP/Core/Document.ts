@@ -31,7 +31,7 @@ export const DocumentId = Schema.String.pipe(Schema.brand("DocumentId"));
 export interface Document extends Pipeable {
   readonly [Document.TypeId]: Document.TypeId;
   readonly id: DocumentId;
-  readonly text: string;
+  readonly text: Schema.Schema.Type<typeof Schema.String>;
   readonly tokens: Chunk.Chunk<Token>;
   readonly sentences: Chunk.Chunk<Sentence>;
   readonly sentiment: Option.Option<number>;
@@ -63,8 +63,7 @@ export namespace Document {
   /**
    * Get token count - dual API (data-first and data-last)
    */
-  export const tokenCount = (doc: Document): number =>
-    Chunk.size(doc.tokens);
+  export const tokenCount = (doc: Document): number => Chunk.size(doc.tokens);
 
   /**
    * Get sentence count - dual API (data-first and data-last)

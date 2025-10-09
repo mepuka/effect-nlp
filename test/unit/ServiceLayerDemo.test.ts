@@ -8,10 +8,10 @@ import { describe, it, expect } from "vitest";
 import { Effect, Chunk } from "effect";
 import { WinkEngine } from "../../src/NLP/Wink/WinkEngine.js";
 import {
-  WinkTokenizer,
+  Tokenization,
   tokenize,
   tokenizeToDocument,
-} from "../../src/NLP/Wink/WinkTokenizer.js";
+} from "../../src/NLP/Core/Tokenization.js";
 import { NLPAppLive } from "../../src/NLP/Layers/index.js";
 
 describe("Service Layer Architecture", () => {
@@ -19,7 +19,7 @@ describe("Service Layer Architecture", () => {
     const program = Effect.gen(function* () {
       // Access services directly from context
       const engine = yield* WinkEngine;
-      const tokenizer = yield* WinkTokenizer;
+      const tokenizer = yield* Tokenization;
 
       // Use engine directly
       const tokenCount = yield* engine.getWinkTokenCount("Hello world test");
@@ -46,7 +46,7 @@ describe("Service Layer Architecture", () => {
 
   it("should use services with test layer", async () => {
     const program = Effect.gen(function* () {
-      const tokenizer = yield* WinkTokenizer;
+      const tokenizer = yield* Tokenization;
       const tokens = yield* tokenizer.tokenize("test input");
 
       return {
@@ -86,16 +86,16 @@ describe("Service Layer Architecture", () => {
 
   it("should demonstrate layer composition and dependency resolution", async () => {
     // This shows how Effect automatically resolves dependencies:
-    // - WinkTokenizer requires WinkEngine
+    // - Tokenization requires WinkEngine
     // - When we provide NLPAppLive, it includes both services
-    // - Effect ensures WinkEngine is available when WinkTokenizer needs it
+    // - Effect ensures WinkEngine is available when Tokenization needs it
 
     const program = Effect.gen(function* () {
       // Only request the high-level service
-      const tokenizer = yield* WinkTokenizer;
+      const tokenizer = yield* Tokenization;
 
       // But it can use the underlying engine transparently
-      const result = yield* tokenizer.tokenizeToDocument(
+      const result = yield* tokenizer.document(
         "Dependency injection works!"
       );
 

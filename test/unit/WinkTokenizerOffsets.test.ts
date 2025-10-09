@@ -1,14 +1,12 @@
 import { assert, describe, it } from "@effect/vitest";
 import { Chunk, Effect, Option } from "effect";
-import {
-  WinkTokenizer,
-  WinkTokenizerLive,
-} from "../../src/NLP/Wink/WinkTokenizer.js";
+import { Tokenization } from "../../src/NLP/Core/Tokenization.js";
+import { WinkTokenizationLive } from "../../src/NLP/Wink/WinkTokenizer.js";
 
-describe("WinkTokenizer", () => {
+describe("Wink tokenization adapter", () => {
   it.effect("computes correct character offsets", () =>
     Effect.gen(function* () {
-      const tokenizer = yield* WinkTokenizer;
+      const tokenizer = yield* Tokenization;
       const text = "  Hello  world!";
 
       const tokens = yield* tokenizer.tokenize(text);
@@ -21,22 +19,15 @@ describe("WinkTokenizer", () => {
       assert.strictEqual(helloToken.text, "Hello");
       assert.strictEqual(Number(helloToken.start), 2);
       assert.strictEqual(Number(helloToken.end), 7);
-      assert.strictEqual(
-        Option.getOrElse(helloToken.precedingSpaces, () => ""),
-        "  "
-      );
-
+      assert.isTrue(Option.isNone(helloToken.precedingSpaces));
       assert.strictEqual(worldToken.text, "world");
       assert.strictEqual(Number(worldToken.start), 9);
       assert.strictEqual(Number(worldToken.end), 14);
-      assert.strictEqual(
-        Option.getOrElse(worldToken.precedingSpaces, () => ""),
-        "  "
-      );
+      assert.isTrue(Option.isNone(worldToken.precedingSpaces));
 
       assert.strictEqual(exclamationToken.text, "!");
       assert.strictEqual(Number(exclamationToken.start), 14);
       assert.strictEqual(Number(exclamationToken.end), 15);
-    }).pipe(Effect.provide(WinkTokenizerLive))
+    }).pipe(Effect.provide(WinkTokenizationLive))
   );
 });

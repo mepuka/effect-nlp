@@ -5,26 +5,76 @@
  * Effect Platform's KeyValueStore with schema validation.
  */
 
-import { Data, Effect, Schema, pipe, Option, Console } from "effect";
+import { Data, Effect, Schema, pipe, Option, Console, DateTime } from "effect";
 import type { SchemaStore } from "@effect/platform/KeyValueStore";
 import { KeyValueStore, layerMemory } from "@effect/platform/KeyValueStore";
 import type { Entity } from "./Entity.js";
-import { EntityHash, EntityId, SchemaId } from "./Entity.js";
+import {
+  EntityHash,
+  EntityId,
+  SchemaId,
+  getEntityId,
+  getSchemaId,
+} from "./Entity.js";
+import { Annotations } from "./Annotations.js";
+import type { Provenance} from "./Provenance.js";
+import { ProvenanceHistory } from "./Provenance.js";
+import type { BadArgument, SystemError } from "@effect/platform/Error";
+import type { ParseError } from "effect/Cron";
 
 // ============================================================================
 // ENTITY STORE SCHEMA
 // ============================================================================
 
 /**
- * Entity store entry schema - stores serialized AST/JSON schema
+ * Canonical schema representation stored with entity metadata.
+ */
+const SchemaAnnotations = Schema.Struct({
+  core: Schema.optional(Annotations.Core),
+  role: Schema.optional(Annotations.Role),
+  semantic: Schema.optional(Annotations.Semantic),
+  provenance: Schema.optional(Annotations.Provenance),
+});
+
+const SchemaSpec = Schema.Struct({
+  version: Schema.Literal(1),
+  rootTag: Schema.String,
+  properties: Schema.Array(
+    Schema.Struct({
+      path: Schema.Array(Schema.String),
+      type: Schema.String,
+      optional: Schema.Boolean,
+      isReadonly: Schema.Boolean,
+    })
+  ),
+});
+
+export const StoredSchema = Schema.Struct({
+  schemaId: SchemaId,
+  hash: Schema.Number,
+  format: Schema.Literal("effect.schema/ast@v1"),
+  annotations: SchemaAnnotations,
+  spec: SchemaSpec,
+});
+export type StoredSchema = Schema.Schema.Type<typeof StoredSchema>;
+
+const EntityValueSnapshot = Schema.Struct({
+  json: Schema.String,
+  recordedAt: Schema.DateTimeUtcFromDate,
+});
+type EntityValueSnapshot = Schema.Schema.Type<typeof EntityValueSnapshot>;
+type StoredProvenance = Schema.Schema.Type<typeof Provenance>;
+
+/**
+ * Entity store entry schema - stores canonical schema representation and provenance.
  */
 export const EntityStoreEntry = Schema.Struct({
   entityId: EntityId,
-  schemaId: SchemaId,
-  entityHash: Schema.Number,
   createdAt: Schema.DateTimeUtcFromDate,
-  schemaJson: Schema.String, // Store the serialized schema as JSON
-  schemaAst: Schema.Unknown, // Store the AST structure
+  updatedAt: Schema.DateTimeUtcFromDate,
+  schema: StoredSchema,
+  valueSnapshot: Schema.optional(EntityValueSnapshot),
+  provenance: ProvenanceHistory,
 });
 
 export type EntityStoreEntry = Schema.Schema.Type<typeof EntityStoreEntry>;
@@ -41,36 +91,27 @@ class SchemaSerializationError extends Data.TaggedError(
   readonly operation: string;
 }> {}
 
-class SchemaASTSerializationError extends Data.TaggedError(
-  "SchemaASTSerializationError"
-)<{
-  readonly cause: unknown;
-  readonly operation: string;
-}> {}
-
 /**
  * Entity Store service interface
  */
+export interface StoreEntityOptions {
+  readonly value?: unknown;
+  readonly recordedAt?: Date;
+  readonly provenance?: ReadonlyArray<StoredProvenance>;
+}
+
 export interface EntityStore {
   readonly _tag: "EntityStore";
 
   // Core operations - using non-generic signatures for accessor compatibility
   readonly storeEntity: (
-    entity: Entity<any>,
-    schemaJson: string,
-    schemaAst: unknown
-  ) => Effect.Effect<
-    void,
-    SchemaSerializationError | SchemaASTSerializationError,
-    never
-  >;
+    entity: Entity<any, any>,
+    options?: StoreEntityOptions
+  ) => Effect.Effect<void, SchemaSerializationError, never>;
 
   readonly retrieveEntity: (
     entityId: EntityId
-  ) => Effect.Effect<
-    Option.Option<{ schemaJson: string; schemaAst: unknown }>,
-    SchemaSerializationError | SchemaASTSerializationError
-  >;
+  ) => Effect.Effect<Option.Option<EntityStoreEntry>, SchemaSerializationError>;
 
   readonly removeEntity: (
     entityId: EntityId
@@ -99,41 +140,57 @@ const entityKey = (entityId: EntityId): string => `entity#${entityId}`;
  * Serialize schema definition for storage using Effect error handling
  */
 const serializeSchema = (
-  schema: Schema.Schema.Any
-): Effect.Effect<string, SchemaSerializationError, never> =>
+  entity: Entity<any, any>
+): Effect.Effect<StoredSchema, SchemaSerializationError, never> =>
   Effect.try({
-    try: () =>
-      JSON.stringify({
-        type: "schema",
-        ast: schema.ast._tag,
-        timestamp: new Date().toISOString(),
-      }),
+    try: () => {
+      const ast = entity.ast;
+      const annotations = ast.annotations ?? {};
+      const context = Annotations.getContext(annotations);
+
+      const properties: Array<{
+        readonly path: ReadonlyArray<string>;
+        readonly type: string;
+        readonly optional: boolean;
+        readonly isReadonly: boolean;
+      }> = [];
+
+      if (ast._tag === "TypeLiteral") {
+        for (const signature of ast.propertySignatures) {
+          properties.push({
+            path: [String(signature.name)],
+            type: String(signature.type._tag),
+            optional: signature.isOptional,
+            isReadonly: signature.isReadonly,
+          });
+        }
+      }
+
+      return StoredSchema.make({
+        schemaId: getSchemaId(entity),
+        hash: EntityHash(entity),
+        format: "effect.schema/ast@v1",
+        annotations: {
+          core: Option.isSome(context.core) ? context.core.value : undefined,
+          role: Option.isSome(context.role) ? context.role.value : undefined,
+          semantic: Option.isSome(context.semantic)
+            ? context.semantic.value
+            : undefined,
+          provenance: Option.isSome(context.provenance)
+            ? context.provenance.value
+            : undefined,
+        },
+        spec: {
+          version: 1,
+          rootTag: ast._tag,
+          properties,
+        },
+      });
+    },
     catch: (cause) =>
       new SchemaSerializationError({
         cause,
         operation: "serializeSchema",
-      }),
-  });
-
-/**
- * Serialize schema AST structure using Effect error handling
- */
-const serializeSchemaAST = (
-  schema: Schema.Schema.Any
-): Effect.Effect<unknown, SchemaASTSerializationError, never> =>
-  Effect.try({
-    try: () => ({
-      ast: schema.ast,
-      astType: schema.ast._tag,
-      propertySignatures:
-        schema.ast._tag === "TypeLiteral"
-          ? schema.ast.propertySignatures
-          : undefined,
-    }),
-    catch: (cause) =>
-      new SchemaASTSerializationError({
-        cause,
-        operation: "serializeSchemaAST",
       }),
   });
 
@@ -151,108 +208,69 @@ export class EntityStoreService extends Effect.Service<EntityStoreService>()(
       const entityStore: SchemaStore<EntityStoreEntry, never> =
         kv.forSchema(EntityStoreEntry);
 
-      const store: EntityStore = {
-        _tag: "EntityStore",
+      const storeEntity = (
+        entity: Entity<any, any>,
+        _options?: StoreEntityOptions
+      ) =>
+        Effect.gen(function* () {
+          const storedSchema = yield* serializeSchema(entity);
+          const entityId = getEntityId(entity);
 
-        storeEntity: (entity: Entity<any>) =>
-          Effect.gen(function* () {
-            const schemaJson = yield* serializeSchema(entity.schema);
-            const schemaAst = yield* serializeSchemaAST(entity.schema);
-            const entry = EntityStoreEntry.make({
-              entityId: entity.entityId,
-              schemaId: entity.schemaId,
-              entityHash: EntityHash(entity),
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-              schemaJson,
-              schemaAst,
-            });
-            const key = entityKey(entity.entityId);
-            yield* entityStore.set(key, entry);
-            yield* Console.log(`Stored entity schema: ${entity.entityId}`);
-          }).pipe(
-            Effect.mapError(
-              (cause) =>
-                new SchemaSerializationError({
-                  cause,
-                  operation: "storeEntity",
-                })
-            )
-          ),
+          const entry = EntityStoreEntry.make({
+            entityId,
+            createdAt: DateTime.unsafeFromDate(new Date()),
+            updatedAt: DateTime.unsafeFromDate(new Date()),
+            schema: storedSchema,
+          });
+          const key = entityKey(entityId);
+          yield* entityStore.set(key, entry);
+          yield* Console.log(`Stored entity schema: ${entityId}`);
+        });
 
-        retrieveEntity: (entityId: EntityId) =>
-          Effect.gen(function* () {
-            const key = entityKey(entityId);
-            const entry = yield* entityStore.get(key);
-            return pipe(
-              entry,
-              Option.map((e) => ({
-                schemaJson: e.schemaJson,
-                schemaAst: e.schemaAst,
-              }))
-            );
-          }).pipe(
-            Effect.mapError(
-              (cause) =>
-                new SchemaSerializationError({
-                  cause,
-                  operation: "retrieveEntity",
-                })
-            )
-          ),
+      const retrieveEntity = (entityId: EntityId) =>
+        Effect.gen(function* () {
+          const key = entityKey(entityId);
+          const entry = yield* entityStore.get(key);
+          return pipe(
+            entry,
+            Option.map((e) => ({
+              schemaJson: e.schema,
+              schemaAst: e.schema,
+            }))
+          );
+        });
 
-        removeEntity: (entityId: EntityId) =>
-          Effect.gen(function* () {
-            const key = entityKey(entityId);
-            yield* entityStore.remove(key);
-            yield* Console.log(`Removed entity: ${entityId}`);
-          }).pipe(
-            Effect.mapError(
-              (cause) =>
-                new SchemaSerializationError({
-                  cause,
-                  operation: "removeEntity",
-                })
-            )
-          ),
+      const removeEntity = (entityId: EntityId) =>
+        Effect.gen(function* () {
+          const key = entityKey(entityId);
+          yield* entityStore.remove(key);
+          yield* Console.log(`Removed entity: ${entityId}`);
+        });
 
-        hasEntity: (entityId: EntityId) =>
-          Effect.gen(function* () {
-            const key = entityKey(entityId);
-            return yield* entityStore.has(key);
-          }).pipe(
-            Effect.mapError(
-              (cause) =>
-                new SchemaSerializationError({ cause, operation: "hasEntity" })
-            )
-          ),
+      const hasEntity = (entityId: EntityId) =>
+        Effect.gen(function* () {
+          const key = entityKey(entityId);
+          return yield* entityStore.has(key);
+        });
 
-        clear: Effect.gen(function* () {
-          yield* entityStore.clear;
-          yield* Console.log("Cleared all entities");
-        }).pipe(
-          Effect.mapError(
-            (cause) =>
-              new SchemaSerializationError({ cause, operation: "clear" })
-          )
-        ),
+      const clear = Effect.gen(function* () {
+        yield* entityStore.clear;
+        yield* Console.log("Cleared all entities");
+      });
 
-        size: entityStore.size.pipe(
-          Effect.mapError(
-            (cause) =>
-              new SchemaSerializationError({ cause, operation: "size" })
-          )
-        ),
+      const size = entityStore.size;
 
-        isEmpty: entityStore.isEmpty.pipe(
-          Effect.mapError(
-            (cause) =>
-              new SchemaSerializationError({ cause, operation: "isEmpty" })
-          )
-        ),
-      };
+      const isEmpty = entityStore.isEmpty;
 
-      return store;
+      return {
+        storeEntity,
+        retrieveEntity,
+        removeEntity,
+        hasEntity,
+        clear,
+        size,
+        isEmpty,
+      } as const;
     }),
     dependencies: [layerMemory],
   }
@@ -269,16 +287,27 @@ export const storeEntity = <A extends Schema.Struct.Fields>(
   entity: Entity<A>
 ): Effect.Effect<
   void,
-  SchemaSerializationError | SchemaASTSerializationError,
+  | SchemaSerializationError
+  | SchemaSerializationError
+  | BadArgument
+  | ParseError
+  | SystemError,
   EntityStoreService
 > =>
   Effect.gen(function* () {
+    const schemaJson = yield* serializeSchema(entity);
     const entityStore = yield* EntityStoreService;
-    const schemaJson = yield* serializeSchema(entity.schema);
-    const schemaAst = yield* serializeSchemaAST(entity.schema);
 
-    yield* entityStore.storeEntity(entity, schemaJson, schemaAst);
-  });
+    yield* entityStore.storeEntity(entity, { schemaJson });
+  }).pipe(
+    Effect.mapError(
+      (cause) =>
+        new SchemaSerializationError({
+          cause,
+          operation: "storeEntity",
+        })
+    )
+  );
 
 /**
  * Retrieve entity by ID

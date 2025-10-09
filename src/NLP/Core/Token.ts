@@ -23,25 +23,24 @@ export const CharPosition = Schema.Number.pipe(Schema.brand("CharPosition"));
  * Token type with unique symbol typeId and pipeable interface
  */
 export interface Token extends Pipeable {
-  readonly [Token.TypeId]: Token.TypeId;
   readonly text: string;
   readonly index: TokenIndex;
   readonly start: CharPosition;
   readonly end: CharPosition;
-  readonly pos: Option.Option<string>;
-  readonly lemma: Option.Option<string>;
-  readonly stem: Option.Option<string>;
-  readonly normal: Option.Option<string>;
-  readonly shape: Option.Option<string>;
-  readonly prefix: Option.Option<string>;
-  readonly suffix: Option.Option<string>;
-  readonly case: Option.Option<string>;
-  readonly uniqueId: Option.Option<number>;
-  readonly abbrevFlag: Option.Option<boolean>;
-  readonly contractionFlag: Option.Option<boolean>;
-  readonly stopWordFlag: Option.Option<boolean>;
-  readonly negationFlag: Option.Option<boolean>;
-  readonly precedingSpaces: Option.Option<string>;
+  readonly pos: Option.Option<string | undefined>;
+  readonly lemma: Option.Option<string | undefined>;
+  readonly stem: Option.Option<string | undefined>;
+  readonly normal: Option.Option<string | undefined>;
+  readonly shape: Option.Option<string | undefined>;
+  readonly prefix: Option.Option<string | undefined>;
+  readonly suffix: Option.Option<string | undefined>;
+  readonly case: Option.Option<string | undefined>;
+  readonly uniqueId: Option.Option<number | undefined>;
+  readonly abbrevFlag: Option.Option<boolean | undefined>;
+  readonly contractionFlag: Option.Option<boolean | undefined>;
+  readonly stopWordFlag: Option.Option<boolean | undefined>;
+  readonly negationFlag: Option.Option<boolean | undefined>;
+  readonly precedingSpaces: Option.Option<string | undefined>;
   readonly tags: ReadonlyArray<string>;
 }
 
@@ -49,9 +48,6 @@ export interface Token extends Pipeable {
  * Token namespace with typeId, constructor, and dual API functions
  */
 export namespace Token {
-  export declare const TypeId: unique symbol;
-  export type TypeId = typeof TypeId;
-
   /**
    * Token constructor using Data.case for simple, pipeable API
    */
@@ -105,7 +101,7 @@ export namespace Token {
   export const isPunctuation = (token: Token): boolean =>
     Option.match(token.shape, {
       onNone: () => false,
-      onSome: (shape) => !/[Xxd]/.test(shape),
+      onSome: (shape) => !/[Xxd]/.test(shape as string),
     });
 
   /**
@@ -114,7 +110,7 @@ export namespace Token {
   export const isWord = (token: Token): boolean =>
     Option.match(token.shape, {
       onNone: () => true,
-      onSome: (shape) => /[Xx]/.test(shape),
+      onSome: (shape) => /[Xx]/.test(shape as string),
     });
 
   /**
@@ -123,7 +119,7 @@ export namespace Token {
   export const isStopWord = (token: Token): boolean =>
     Option.match(token.stopWordFlag, {
       onNone: () => false,
-      onSome: (isStop) => isStop,
+      onSome: (isStop) => isStop as boolean,
     });
 
   /**
@@ -134,12 +130,14 @@ export namespace Token {
   /**
    * Get token POS tag - dual API (data-first and data-last)
    */
-  export const pos = (token: Token): Option.Option<string> => token.pos;
+  export const pos = (token: Token): Option.Option<string | undefined> =>
+    token.pos;
 
   /**
    * Get token lemma - dual API (data-first and data-last)
    */
-  export const lemma = (token: Token): Option.Option<string> => token.lemma;
+  export const lemma = (token: Token): Option.Option<string | undefined> =>
+    token.lemma;
 
   /**
    * Update token text - dual API (data-first and data-last)

@@ -8,12 +8,13 @@
  */
 
 import { Schema, Effect, Console, pipe, Option } from "effect";
-import { MakeEntity, EntityHash } from "../Extraction/Entity.js";
+import { MakeEntity } from "../Extraction/Entity.js";
 import {
   EntityStoreService,
   storeEntity,
   retrieveEntity,
 } from "../Extraction/Store.js";
+import { Provenance } from "../Extraction/Provenance.js";
 
 // ============================================================================
 // TEST SCHEMAS
@@ -54,6 +55,21 @@ const testEntityStorage = Effect.gen(function* () {
   // Test 1: Basic entity storage and retrieval
   yield* Console.log("1. Basic Entity Storage and Retrieval:");
   const personEntity = MakeEntity(PersonFields, { name: "TestPerson" });
+  const provenanceEntry = Provenance.make({
+    documentId: "doc-123",
+    spans: [
+      {
+        path: ["name"],
+        start: 0,
+        end: 4,
+      },
+    ],
+    extractedAt: new Date(),
+    modelInfo: {
+      provider: "test-provider",
+      model: "mock-model",
+    },
+  });
 
   const personData = {
     name: "John Doe",
@@ -72,10 +88,11 @@ const testEntityStorage = Effect.gen(function* () {
   // Store the entity
   const entityStore = yield* EntityStoreService;
   yield* entityStore.storeEntity(
-    personEntity.entityId,
-    personEntity.schemaId,
-    EntityHash(personEntity),
-    personData
+    personEntity,
+    {
+      value: personData,
+      provenance: [provenanceEntry],
+    }
   );
   yield* Console.log("  ✅ Entity stored successfully");
 
@@ -86,7 +103,9 @@ const testEntityStorage = Effect.gen(function* () {
     Option.match({
       onNone: () => Console.log("  ❌ Entity not found"),
       onSome: (data) =>
-        Console.log(`  ✅ Entity retrieved: ${JSON.stringify(data, null, 2)}`),
+        Console.log(
+          `  ✅ Entity retrieved: ${JSON.stringify(data, null, 2)}`
+        ),
     })
   );
   yield* Console.log("");
@@ -100,6 +119,21 @@ const testEntityOperations = Effect.gen(function* () {
   // Test 1: Entity existence check
   yield* Console.log("1. Entity Existence Check:");
   const personEntity = MakeEntity(PersonFields, { name: "ExistsPerson" });
+  const provenanceEntry = Provenance.make({
+    documentId: "doc-456",
+    spans: [
+      {
+        path: ["name"],
+        start: 0,
+        end: 5,
+      },
+    ],
+    extractedAt: new Date(),
+    modelInfo: {
+      provider: "test-provider",
+      model: "mock-model",
+    },
+  });
 
   const personData = {
     name: "Jane Doe",
@@ -117,10 +151,11 @@ const testEntityOperations = Effect.gen(function* () {
 
   // Store and check again
   yield* entityStore.storeEntity(
-    personEntity.entityId,
-    personEntity.schemaId,
-    EntityHash(personEntity),
-    personData
+    personEntity,
+    {
+      value: personData,
+      provenance: [provenanceEntry],
+    }
   );
   const existsAfter = yield* entityStore.hasEntity(personEntity.entityId);
   yield* Console.log(`  Exists after storage: ${existsAfter}`);
@@ -160,12 +195,25 @@ const testStoreManagement = Effect.gen(function* () {
       createdAt: new Date().toISOString(),
     };
 
-    yield* entityStore.storeEntity(
-      entity.entityId,
-      entity.schemaId,
-      EntityHash(entity),
-      data
-    );
+    const provenanceEntry = Provenance.make({
+      documentId: `doc-${i}`,
+      spans: [
+        {
+          path: ["name"],
+          start: 0,
+          end: String(data.name).length,
+        },
+      ],
+      extractedAt: new Date(),
+      modelInfo: {
+        provider: "test-provider",
+        model: "mock-model",
+      },
+    });
+    yield* entityStore.storeEntity(entity, {
+      value: data,
+      provenance: [provenanceEntry],
+    });
     entities.push({ entity, data });
   }
 
@@ -199,16 +247,20 @@ const testSchemaValidation = Effect.gen(function* () {
     createdAt: new Date().toISOString(),
   };
 
-  yield* storeEntity(personEntity, validData);
-  const retrieved = yield* retrieveEntity(personEntity);
+  yield* storeEntity(personEntity, { value: validData });
+  const retrieved = yield* retrieveEntity(personEntity.entityId);
 
   yield* pipe(
     retrieved,
     Option.match({
       onNone: () => Console.log("  ❌ Valid entity not retrieved"),
-      onSome: (data) => {
+      onSome: (entry) => {
+        const snapshot = entry.valueSnapshot?.json;
+        const parsed = snapshot !== undefined ? JSON.parse(snapshot) : undefined;
         const isValid =
-          data.name === validData.name && data.age === validData.age;
+          parsed !== undefined &&
+          parsed.name === validData.name &&
+          parsed.age === validData.age;
         return Console.log(
           `  ${isValid ? "✅" : "❌"} Valid entity retrieved and validated`
         );
@@ -256,6 +308,6 @@ export { runEntityStoreTests };
 // Run tests if this file is executed directly
 if (import.meta.url === `file://${process.argv[1]}`) {
   Effect.runPromise(
-    pipe(runEntityStoreTests, Effect.provide(EntityStoreService.Live))
+    pipe(runEntityStoreTests, Effect.provide(EntityStoreService.Default))
   ).catch(console.error);
 }

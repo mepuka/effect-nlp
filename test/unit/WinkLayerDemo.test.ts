@@ -11,19 +11,17 @@ import {
   WinkTokenizationLive,
   WinkNLPLive,
   WinkEngine,
-  WinkTokenizer,
   WinkVectorizer,
-  WinkUtils,
 } from "../../src/NLP/Wink/Layer.js";
+import { Tokenization } from "../../src/NLP/Core/Tokenization.js";
 
 describe("Wink Layer Architecture", () => {
   it("should provide all services with WinkLayerLive", async () => {
     const program = Effect.gen(function* () {
       // Access all services from the comprehensive layer
       const engine = yield* WinkEngine;
-      const tokenizer = yield* WinkTokenizer;
+      const tokenizer = yield* Tokenization;
       const vectorizer = yield* WinkVectorizer;
-      const utils = yield* WinkUtils;
 
       // Test basic functionality
       const tokenCount = yield* engine.getWinkTokenCount("Hello world test");
@@ -36,7 +34,6 @@ describe("Wink Layer Architecture", () => {
           engine: !!engine,
           tokenizer: !!tokenizer,
           vectorizer: !!vectorizer,
-          utils: !!utils,
         },
       };
     });
@@ -50,13 +47,12 @@ describe("Wink Layer Architecture", () => {
     expect(result.servicesAvailable.engine).toBe(true);
     expect(result.servicesAvailable.tokenizer).toBe(true);
     expect(result.servicesAvailable.vectorizer).toBe(true);
-    expect(result.servicesAvailable.utils).toBe(true);
   });
 
   it("should work with specialized layers", async () => {
     // Test tokenization-only layer
     const tokenizationProgram = Effect.gen(function* () {
-      const tokenizer = yield* WinkTokenizer;
+      const tokenizer = yield* Tokenization;
       const tokens = yield* tokenizer.tokenize("Hello tokenization");
       return Chunk.size(tokens);
     });
@@ -69,10 +65,10 @@ describe("Wink Layer Architecture", () => {
 
     // Test full NLP layer
     const nlpProgram = Effect.gen(function* () {
-      const tokenizer = yield* WinkTokenizer;
+      const tokenizer = yield* Tokenization;
       const vectorizer = yield* WinkVectorizer;
 
-      const document = yield* tokenizer.tokenizeToDocument("Hello NLP world");
+      const document = yield* tokenizer.document("Hello NLP world");
       yield* vectorizer.learnDocument(document);
 
       const stats = yield* vectorizer.getCorpusStats();
@@ -96,26 +92,21 @@ describe("Wink Layer Architecture", () => {
     // This shows how the layer automatically provides all dependencies
     const program = Effect.gen(function* () {
       // We only request high-level services, but the layer provides everything needed
-      const tokenizer = yield* WinkTokenizer;
+      const tokenizer = yield* Tokenization;
       const vectorizer = yield* WinkVectorizer;
-      const utils = yield* WinkUtils;
 
       // Complex workflow using multiple services
-      const document = yield* tokenizer.tokenizeToDocument(
+      const document = yield* tokenizer.document(
         "Machine learning is fascinating"
       );
       yield* vectorizer.learnDocument(document);
 
       // Use utils for text processing
-      const textInput = { text: "Another example text" };
-      const processedTokens = yield* utils.tokenize(textInput);
-
       const corpusStats = yield* vectorizer.getCorpusStats();
 
       return {
         originalDocument: document.text,
         learnedDocuments: corpusStats.totalDocuments,
-        processedTokensCount: Chunk.size(processedTokens.tokens),
         vocabularySize: Chunk.size(corpusStats.uniqueTerms),
       };
     });
@@ -126,7 +117,6 @@ describe("Wink Layer Architecture", () => {
 
     expect(result.originalDocument).toBe("Machine learning is fascinating");
     expect(result.learnedDocuments).toBe(1);
-    expect(result.processedTokensCount).toBeGreaterThan(0);
     expect(result.vocabularySize).toBeGreaterThan(0);
   });
 });

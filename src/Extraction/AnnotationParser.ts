@@ -50,11 +50,13 @@ export const extractSchemaContext = (
   annotations: SchemaAST.Annotations
 ): SchemaContext => {
   const identifier = Option.fromNullable<SchemaAST.IdentifierAnnotation>(
-    annotations[SchemaAST.IdentifierAnnotationId] as
-      | SchemaAST.IdentifierAnnotation
-      | undefined
+    annotations[
+      SchemaAST.IdentifierAnnotationId
+    ] as SchemaAST.IdentifierAnnotation
   );
-  const defaultValue = Option.fromNullable<SchemaAST.DefaultAnnotation<unknown>>(
+  const defaultValue = Option.fromNullable<
+    SchemaAST.DefaultAnnotation<unknown>
+  >(
     annotations[SchemaAST.DefaultAnnotationId] as
       | SchemaAST.DefaultAnnotation<unknown>
       | undefined
@@ -78,9 +80,9 @@ export const extractSchemaContext = (
     Option.flatMap((value) => Option.fromNullable(value.documentation))
   );
   const examples = Option.fromNullable<SchemaAST.ExamplesAnnotation<unknown>>(
-    annotations[SchemaAST.ExamplesAnnotationId] as
-      | SchemaAST.ExamplesAnnotation<unknown>
-      | undefined
+    annotations[
+      SchemaAST.ExamplesAnnotationId
+    ] as SchemaAST.ExamplesAnnotation<unknown>
   );
 
   // Extract metadata using Record combinators
@@ -95,9 +97,7 @@ export const extractSchemaContext = (
   const metadata = pipe(
     annotations,
     Record.filter(
-      (_, key) =>
-        typeof key === "string" &&
-        !reservedKeys.has(key)
+      (_, key) => typeof key === "string" && !reservedKeys.has(key)
     ),
     Record.map((value) => value),
     Object.entries,

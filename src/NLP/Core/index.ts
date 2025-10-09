@@ -12,6 +12,7 @@ export * from "./Sentence.js";
 
 // Document types and helpers
 export * from "./Document.js";
+export * from "./Tokenization.js";
 
 // Pattern types and helpers
 export * from "./Pattern.js";
