@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { Data } from "effect";
+import { Data, Effect } from "effect";
 import {
   Pattern,
   POSPatternElement,
@@ -191,41 +191,56 @@ describe("Bracket String Transformations", () => {
   describe("Pattern Element validation", () => {
     it("should reject empty POS pattern arrays", () => {
       expect(() => {
-        POSPatternElement.make({
-          value: Data.array([] as any),
-        });
+        Effect.runSync(
+          Pattern.POS.decode({
+            _tag: "POSPatternElement",
+            value: [],
+          })
+        );
       }).toThrow();
     });
 
     it("should reject empty Entity pattern arrays", () => {
       expect(() => {
-        EntityPatternElement.make({
-          value: Data.array([] as any),
-        });
+        Effect.runSync(
+          Pattern.Entity.decode({
+            _tag: "EntityPatternElement",
+            value: [],
+          })
+        );
       }).toThrow();
     });
 
     it("should reject empty Literal pattern arrays", () => {
       expect(() => {
-        LiteralPatternElement.make({
-          value: Data.array([] as any),
-        });
+        Effect.runSync(
+          Pattern.Literal.decode({
+            _tag: "LiteralPatternElement",
+            value: [],
+          })
+        );
       }).toThrow();
     });
 
     it("should reject invalid POS tags", () => {
       expect(() => {
-        POSPatternElement.make({
-          value: Data.array(["INVALID_POS"] as any),
-        });
+        Effect.runSync(
+          Pattern.POS.decode({
+            _tag: "POSPatternElement",
+            value: ["INVALID_POS"],
+          })
+        );
       }).toThrow();
     });
 
     it("should reject invalid entity types", () => {
       expect(() => {
-        EntityPatternElement.make({
-          value: Data.array(["INVALID_ENTITY"] as any),
-        });
+        Effect.runSync(
+          Pattern.Entity.decode({
+            _tag: "EntityPatternElement",
+            value: ["INVALID_ENTITY"],
+          })
+        );
       }).toThrow();
     });
   });
@@ -321,8 +336,16 @@ describe("Bracket String Transformations", () => {
 
     it("should handle large arrays efficiently", () => {
       const largeArray = Array.from({ length: 50 }, (_, i) => `word${i}`);
+      const [head, ...tail] = largeArray;
+      if (head === undefined) {
+        throw new Error("Expected non-empty pattern array");
+      }
+      const nonEmptyWords: readonly [string, ...Array<string>] = [
+        head,
+        ...tail,
+      ];
       const element = LiteralPatternElement.make({
-        value: Data.array(largeArray as readonly [string, ...Array<string>]),
+        value: Data.array(nonEmptyWords),
       });
       
       const result = Pattern.Literal.toBracketString(element.value);
@@ -369,9 +392,12 @@ describe("Bracket String Transformations", () => {
     it("should accept mixed case POS tags", () => {
       // POS tags should be uppercase
       expect(() => {
-        POSPatternElement.make({
-          value: Data.array(["noun"] as any),
-        });
+        Effect.runSync(
+          Pattern.POS.decode({
+            _tag: "POSPatternElement",
+            value: ["noun"],
+          })
+        );
       }).toThrow();
     });
 

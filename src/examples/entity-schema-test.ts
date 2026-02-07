@@ -111,9 +111,8 @@ const testEntitySchemaCreation = () =>
 
     const validationResult = Schema.decode(personEntity)(validPersonData);
     const validatedData = yield* validationResult;
-    yield* Console.log(
-      `Validated data: ${JSON.stringify(validatedData, null, 2)}`
-    );
+    yield* Console.log("Validated data:");
+    yield* Console.log(validatedData);
 
     // Test 5: Entity property hash set
     yield* Console.log("\n5. Testing entity property hash set...");

@@ -299,12 +299,6 @@ const runEntityStoreTests = Effect.gen(function* () {
   return results;
 });
 
-// ============================================================================
-// EXPORT FOR TESTING
-// ============================================================================
-
-export { runEntityStoreTests };
-
 // Run tests if this file is executed directly
 if (import.meta.url === `file://${process.argv[1]}`) {
   Effect.runPromise(

@@ -84,8 +84,7 @@ describe("WinkEngineRef Security and State Management", () => {
 
       await Effect.runPromise(
         program.pipe(
-          Effect.provide(WinkEngine.Default),
-          Effect.provide(WinkEngineRef.Default)
+          Effect.provide(Layer.mergeAll(WinkEngine.Default, WinkEngineRef.Default))
         )
       );
     });

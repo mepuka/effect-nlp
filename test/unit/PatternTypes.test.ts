@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { Chunk, Data, Schema } from "effect";
+import { Chunk, Data, Effect, Schema } from "effect";
 import {
   Pattern,
   POSPatternElement,
@@ -146,12 +146,12 @@ describe("Pattern Types", () => {
       complexPattern = new Pattern({
         id: Pattern.Id("complex-entity"),
         elements: Chunk.make(
-          LiteralPatternElement.make({ value: Data.array(["", "the"]) }),
-          POSPatternElement.make({ value: Data.array(["ADJ"]) }),
+          LiteralPatternElement.make({ value: Data.array(["", "the"] as const) }),
+          POSPatternElement.make({ value: Data.array(["ADJ"] as const) }),
           LiteralPatternElement.make({
-            value: Data.array(["company", "corporation"]),
+            value: Data.array(["company", "corporation"] as const),
           }),
-          EntityPatternElement.make({ value: Data.array(["MONEY"]) })
+          EntityPatternElement.make({ value: Data.array(["MONEY"] as const) })
         ),
       });
     });
@@ -362,7 +362,12 @@ describe("Pattern Types", () => {
     it("should handle empty value arrays in elements", () => {
       // This test verifies the schema validation - empty arrays should be rejected
       expect(() => {
-        POSPatternElement.make({ value: Data.array([]) });
+        Effect.runSync(
+          Pattern.POS.decode({
+            _tag: "POSPatternElement",
+            value: [],
+          })
+        );
       }).toThrow();
     });
 
@@ -427,9 +432,19 @@ describe("Pattern Types", () => {
       const largePattern = new Pattern({
         id: Pattern.Id("large-pattern"),
         elements: Chunk.make(
-          LiteralPatternElement.make({
-            value: Data.array(largeLiteralArray as const),
-          })
+          (() => {
+            const [head, ...tail] = largeLiteralArray;
+            if (head === undefined) {
+              throw new Error("Expected non-empty pattern array");
+            }
+            const nonEmptyWords: readonly [string, ...Array<string>] = [
+              head,
+              ...tail,
+            ];
+            return LiteralPatternElement.make({
+              value: Data.array(nonEmptyWords),
+            });
+          })()
         ),
       });
 
@@ -442,7 +457,7 @@ describe("Pattern Types", () => {
     it("should create immutable data structures", () => {
       const originalArray = ["NOUN", "VERB"];
       const element = POSPatternElement.make({
-        value: Data.array(originalArray as const),
+        value: Data.array(["NOUN", "VERB"] as const),
       });
 
       // Modifying original array should not affect element

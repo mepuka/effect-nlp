@@ -1,18 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { Option, Schema, pipe } from "effect";
+import { Option, Schema } from "effect";
 import { Annotations } from "../../src/Extraction/Annotations.js";
 
 describe("Annotations", () => {
   it("attaches core annotations and round-trips", () => {
-    const schema = pipe(
-      Schema.String,
-      Annotations.withCore({
-        title: "Title",
-        description: "Description",
-        documentation: "Doc",
-        constraints: ["Must be present"],
-      })
-    );
+    const schema = Annotations.withCore(Schema.String, {
+      title: "Title",
+      description: "Description",
+      documentation: "Doc",
+      constraints: ["Must be present"],
+    });
 
     const core = Annotations.getCore(schema.ast.annotations);
     expect(Option.isSome(core)).toBe(true);
@@ -24,18 +21,15 @@ describe("Annotations", () => {
   });
 
   it("merges metadata helpers", () => {
-    const schema = pipe(
-      Schema.String,
-      Annotations.withMetadata({
-        core: {
-          title: "StringValue",
-          description: "A string value",
-        },
-        role: { role: "field" },
-        semantic: { semanticType: "scalar" },
-        provenance: { source: "spec" },
-      })
-    );
+    const schema = Annotations.withMetadata(Schema.String, {
+      core: {
+        title: "StringValue",
+        description: "A string value",
+      },
+      role: { role: "field" },
+      semantic: { semanticType: "scalar" },
+      provenance: { source: "spec" },
+    });
 
     const context = Annotations.getContext(schema.ast.annotations);
     expect(Option.isSome(context.core)).toBe(true);

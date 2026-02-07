@@ -41,10 +41,10 @@ const testSchemaSerialization = Effect.gen(function* () {
   const orgJsonSchema = JSONSchema.make(orgEntity.schema);
 
   yield* Console.log("Person JSON Schema:");
-  yield* Console.log(JSON.stringify(personJsonSchema, null, 2));
+  yield* Console.log(personJsonSchema);
 
   yield* Console.log("\nOrganization JSON Schema:");
-  yield* Console.log(JSON.stringify(orgJsonSchema, null, 2));
+  yield* Console.log(orgJsonSchema);
 
   yield* Console.log("\n2. Schema.encode - Encode data according to schema:");
   yield* Console.log(
@@ -77,10 +77,10 @@ const testSchemaSerialization = Effect.gen(function* () {
   const encodedOrg = yield* encodeOrg(orgData);
 
   yield* Console.log("Encoded Person Data (using Schema.encode):");
-  yield* Console.log(JSON.stringify(encodedPerson, null, 2));
+  yield* Console.log(encodedPerson);
 
   yield* Console.log("\nEncoded Organization Data (using Schema.encode):");
-  yield* Console.log(JSON.stringify(encodedOrg, null, 2));
+  yield* Console.log(encodedOrg);
 
   yield* Console.log(
     "\n3. Schema.parseJson - Parse JSON strings into structured data:"
@@ -90,12 +90,13 @@ const testSchemaSerialization = Effect.gen(function* () {
   );
 
   // Example of Schema.parseJson usage
-  const jsonString = JSON.stringify(personData);
   const parseJsonSchema = Schema.parseJson(personEntity.schema);
+  const encodeJson = Schema.encode(parseJsonSchema);
+  const jsonString = yield* encodeJson(personData);
 
   const parsedData = yield* Schema.decode(parseJsonSchema)(jsonString);
   yield* Console.log("Parsed JSON string back to data:");
-  yield* Console.log(JSON.stringify(parsedData, null, 2));
+  yield* Console.log(parsedData);
 
   yield* Console.log("\n4. Entity Hash for storage:");
 

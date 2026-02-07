@@ -175,14 +175,16 @@ const testSchemaStamping = Effect.gen(function* () {
     createdAt: new Date().toISOString(),
   };
 
-  try {
-    const validated = Schema.decodeUnknownSync(personEntity.schema)(testData);
+  const validatedResult = yield* Effect.either(
+    Schema.decodeUnknown(personEntity.schema)(testData)
+  );
+  if (validatedResult._tag === "Right") {
+    const validated = validatedResult.right;
     yield* Console.log("  ✅ Schema validation successful");
-    yield* Console.log(
-      `  Validated data: ${JSON.stringify(validated, null, 2)}`
-    );
-  } catch (error) {
-    yield* Console.log(`  ❌ Schema validation failed: ${error}`);
+    yield* Console.log("  Validated data:");
+    yield* Console.log(validated);
+  } else {
+    yield* Console.log(`  ❌ Schema validation failed: ${validatedResult.left}`);
   }
   yield* Console.log("");
 
@@ -251,16 +253,12 @@ const testBrandedTypes = Effect.gen(function* () {
 
   // Test 3: Schema validation of branded types
   yield* Console.log("3. Branded Type Schema Validation:");
-  try {
-    const validEntityId = EntityId.make("entity-123");
-    const validSchemaId = SchemaId.make("schema-test-456");
+  const validEntityId = EntityId.make("entity##123");
+  const validSchemaId = SchemaId.make("schema-test-456");
 
-    yield* Console.log(`  Valid Entity ID: ${validEntityId}`);
-    yield* Console.log(`  Valid Schema ID: ${validSchemaId}`);
-    yield* Console.log("  ✅ Branded type validation successful");
-  } catch (error) {
-    yield* Console.log(`  ❌ Branded type validation failed: ${error}`);
-  }
+  yield* Console.log(`  Valid Entity ID: ${validEntityId}`);
+  yield* Console.log(`  Valid Schema ID: ${validSchemaId}`);
+  yield* Console.log("  ✅ Branded type validation successful");
   yield* Console.log("");
 
   return { entityId1, entityId2, schemaId1, schemaId2 };

@@ -34,7 +34,7 @@ const demonstrateParseJson = Effect.gen(function* () {
   const parsedPerson = yield* Schema.decode(parseJsonSchema)(jsonString);
   
   yield* Console.log("Parsed result:");
-  yield* Console.log(JSON.stringify(parsedPerson, null, 2));
+  yield* Console.log(parsedPerson);
 
   // Example 2: Encode data back to JSON string
   yield* Console.log("\n2. Encoding data back to JSON string:");
@@ -46,7 +46,7 @@ const demonstrateParseJson = Effect.gen(function* () {
   };
   
   yield* Console.log("Input data:");
-  yield* Console.log(JSON.stringify(personData, null, 2));
+  yield* Console.log(personData);
   
   // Encode using the parseJson schema
   const encodePerson = Schema.encode(parseJsonSchema);
@@ -76,7 +76,7 @@ const demonstrateParseJson = Effect.gen(function* () {
   // Parse it back
   const parsedComplex = yield* Schema.decode(parseJsonSchema)(encodedComplex);
   yield* Console.log("Parsed back to structured data:");
-  yield* Console.log(JSON.stringify(parsedComplex, null, 2));
+  yield* Console.log(parsedComplex);
 });
 
 // ============================================================================

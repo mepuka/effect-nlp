@@ -15,7 +15,8 @@ const debugEntityAnnotations = () =>
     });
 
     yield* Console.log("\n1. Entity AST annotations:");
-    yield* Console.log(`All annotations: ${JSON.stringify(Person.ast.annotations, null, 2)}`);
+    yield* Console.log("All annotations:");
+    yield* Console.log(Person.ast.annotations);
     
     // Check for symbol-based annotations
     const symbolKeys = Object.getOwnPropertySymbols(Person.ast.annotations);
@@ -27,11 +28,12 @@ const debugEntityAnnotations = () =>
 
     // Test 2: Check property signatures
     yield* Console.log("\n2. Property signature annotations:");
-    const signatures = Person.ast.propertySignatures;
-    if (signatures) {
+    if (Person.ast._tag === "TypeLiteral") {
+      const signatures = Person.ast.propertySignatures;
       for (const sig of signatures) {
         yield* Console.log(`Property ${String(sig.name)}:`);
-        yield* Console.log(`  All annotations: ${JSON.stringify(sig.annotations, null, 2)}`);
+        yield* Console.log("  All annotations:");
+        yield* Console.log(sig.annotations);
         
         const propSymbolKeys = Object.getOwnPropertySymbols(sig.annotations);
         yield* Console.log(`  Symbol keys: ${propSymbolKeys.map(s => s.toString())}`);
@@ -63,4 +65,3 @@ const debugEntityAnnotations = () =>
 
 // Run the debug test
 Effect.runPromise(debugEntityAnnotations()).catch(console.error);
-

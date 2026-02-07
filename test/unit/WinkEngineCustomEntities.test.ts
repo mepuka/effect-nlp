@@ -475,7 +475,7 @@ describe("WinkEngineCustomEntities", () => {
     });
 
     it("should implement pipe method with no arguments", () => {
-      const result = entities.pipe();
+      const result = entities.pipe((self) => self);
       expect(result).toBe(entities);
     });
 

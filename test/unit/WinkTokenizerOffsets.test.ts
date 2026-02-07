@@ -19,15 +19,16 @@ describe("Wink tokenization adapter", () => {
       assert.strictEqual(helloToken.text, "Hello");
       assert.strictEqual(Number(helloToken.start), 2);
       assert.strictEqual(Number(helloToken.end), 7);
-      assert.isTrue(Option.isNone(helloToken.precedingSpaces));
+      assert.deepStrictEqual(helloToken.precedingSpaces, Option.some("  "));
       assert.strictEqual(worldToken.text, "world");
       assert.strictEqual(Number(worldToken.start), 9);
       assert.strictEqual(Number(worldToken.end), 14);
-      assert.isTrue(Option.isNone(worldToken.precedingSpaces));
+      assert.deepStrictEqual(worldToken.precedingSpaces, Option.some("  "));
 
       assert.strictEqual(exclamationToken.text, "!");
       assert.strictEqual(Number(exclamationToken.start), 14);
       assert.strictEqual(Number(exclamationToken.end), 15);
+      assert.isTrue(Option.isNone(exclamationToken.precedingSpaces));
     }).pipe(Effect.provide(WinkTokenizationLive))
   );
 });

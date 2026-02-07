@@ -31,7 +31,7 @@ const testMakeEntity = Effect.gen(function* () {
   yield* Console.log(`Entity Hash: ${EntityHash(simpleEntity)}`);
 
   const tree = yield* buildSchemaASTTree(simpleEntity);
-  const context = generatePromptContext(tree.nodeMap);
+  const context = generatePromptContext(tree.root);
   yield* Console.log(context);
 });
 

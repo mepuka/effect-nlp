@@ -160,30 +160,30 @@ const OrganizationSchema = pipe(
 // TEST FUNCTION
 // ============================================================================
 
-const testCorrectedASTTraversal = Effect.gen(function* (_) {
-  yield* _(Console.log("=== Corrected AST Traversal Test ===\n"));
+const testCorrectedASTTraversal = Effect.gen(function* () {
+  yield* (Console.log("=== Corrected AST Traversal Test ===\n"));
 
   // Build the AST tree using proper SchemaAST compiler
-  const tree = yield* _(buildSchemaASTTree(OrganizationSchema));
+  const tree = yield* (buildSchemaASTTree(OrganizationSchema));
 
-  yield* _(Console.log("✓ Schema AST Tree built successfully"));
-  yield* _(
+  yield* (Console.log("✓ Schema AST Tree built successfully"));
+  yield* (
     Console.log(
       `Root identifier: ${Option.getOrNull(tree.root.context.identifier)}`
     )
   );
-  yield* _(
+  yield* (
     Console.log(
       `Root semantic type: ${
         Option.getOrElse(tree.root.context.semanticType, () => "unknown")
       }`
     )
   );
-  yield* _(Console.log(`Root children count: ${tree.root.children.length}`));
-  yield* _(Console.log(""));
+  yield* (Console.log(`Root children count: ${tree.root.children.length}`));
+  yield* (Console.log(""));
 
   // Show the tree structure
-  yield* _(Console.log("=== TREE STRUCTURE ==="));
+  yield* (Console.log("=== TREE STRUCTURE ==="));
   tree.root.children.forEach((child, index) => {
     const childId = Option.getOrNull(child.context.identifier);
     const childRole = Option.getOrNull(child.context.annotations.role);
@@ -203,10 +203,10 @@ const testCorrectedASTTraversal = Effect.gen(function* (_) {
       );
     });
   });
-  yield* _(Console.log(""));
+  yield* (Console.log(""));
 
   // Test context extraction at specific paths
-  yield* _(Console.log("=== CONTEXT EXTRACTION ==="));
+  yield* (Console.log("=== CONTEXT EXTRACTION ==="));
   const ceoContext = extractContextAtPath(tree, ["ceo"]);
   Option.match(ceoContext, {
     onNone: () => console.log("CEO context not found"),
@@ -226,34 +226,34 @@ const testCorrectedASTTraversal = Effect.gen(function* (_) {
       console.log(`  Description: ${Option.getOrNull(context.description)}`);
     },
   });
-  yield* _(Console.log(""));
+  yield* (Console.log(""));
 
   // Find nodes by semantic type
-  yield* _(Console.log("=== NODES BY SEMANTIC TYPE ==="));
+  yield* (Console.log("=== NODES BY SEMANTIC TYPE ==="));
   const entityNodes = findNodesBySemanticType(tree, "entity");
   console.log(`Found ${entityNodes.length} entity nodes:`);
   entityNodes.forEach((node, index) => {
     const id = Option.getOrNull(node.context.identifier);
     console.log(`  ${index + 1}. ${node.path.join(".")} - ${id}`);
   });
-  yield* _(Console.log(""));
+  yield* (Console.log(""));
 
   // Generate prompts for different parts of the schema
-  yield* _(Console.log("=== PROMPT GENERATION ==="));
+  yield* (Console.log("=== PROMPT GENERATION ==="));
 
   // Full schema prompt
   const fullPrompt = generateSchemaPrompt(tree);
-  yield* _(Console.log("Full Schema Prompt:"));
-  yield* _(Console.log(fullPrompt));
-  yield* _(Console.log(""));
+  yield* (Console.log("Full Schema Prompt:"));
+  yield* (Console.log(fullPrompt));
+  yield* (Console.log(""));
 
   // CEO field prompt
   const ceoPrompt = generateSchemaPrompt(tree, ["ceo"]);
-  yield* _(Console.log("CEO Field Prompt:"));
-  yield* _(Console.log(ceoPrompt));
-  yield* _(Console.log(""));
+  yield* (Console.log("CEO Field Prompt:"));
+  yield* (Console.log(ceoPrompt));
+  yield* (Console.log(""));
 
-  yield* _(Console.log("=== Test completed successfully ==="));
+  yield* (Console.log("=== Test completed successfully ==="));
 });
 
 // ============================================================================
