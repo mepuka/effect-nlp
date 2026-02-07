@@ -48,16 +48,19 @@ export namespace Annotations {
     const annotations: Record<PropertyKey, unknown> = {};
 
     if (encoded.title !== undefined) {
-      annotations.title = encoded.title;
+      annotations[SchemaAST.TitleAnnotationId] = encoded.title;
     }
     if (encoded.description !== undefined) {
-      annotations.description = encoded.description;
+      annotations[SchemaAST.DescriptionAnnotationId] = encoded.description;
     }
     if (encoded.examples !== undefined) {
-      annotations.examples = encoded.examples;
+      const [head, ...tail] = encoded.examples;
+      if (head !== undefined) {
+        annotations[SchemaAST.ExamplesAnnotationId] = [head, ...tail];
+      }
     }
     if (encoded.documentation !== undefined) {
-      annotations.documentation = encoded.documentation;
+      annotations[SchemaAST.DocumentationAnnotationId] = encoded.documentation;
     }
     if (encoded.constraints !== undefined) {
       annotations[ConstraintsAnnotationId] = encoded.constraints;
@@ -138,32 +141,32 @@ export namespace Annotations {
     Schema.decodeUnknownOption(Provenance)
   );
 
+  const decodeStringAnnotation = (value: unknown): Option.Option<string> =>
+    typeof value === "string" ? Option.some(value) : Option.none();
+
+  const decodeExamplesAnnotation = (
+    value: unknown
+  ): Option.Option<ReadonlyArray<unknown>> =>
+    Array.isArray(value) ? Option.some(value) : Option.none();
+
   export const getCore = (
     annotations: SchemaAST.Annotations
   ): Option.Option<Core> => {
-    const title = Option.fromNullable<SchemaAST.TitleAnnotation>(
-      annotations[SchemaAST.TitleAnnotationId] as
-        | SchemaAST.TitleAnnotation
-        | undefined
+    const title = pipe(
+      Option.fromNullable(annotations[SchemaAST.TitleAnnotationId]),
+      Option.flatMap(decodeStringAnnotation)
     );
-    const description = Option.fromNullable<SchemaAST.DescriptionAnnotation>(
-      annotations[SchemaAST.DescriptionAnnotationId] as
-        | SchemaAST.DescriptionAnnotation
-        | undefined
+    const description = pipe(
+      Option.fromNullable(annotations[SchemaAST.DescriptionAnnotationId]),
+      Option.flatMap(decodeStringAnnotation)
     );
-    const examples = Option.fromNullable<
-      SchemaAST.ExamplesAnnotation<unknown>
-    >(
-      annotations[SchemaAST.ExamplesAnnotationId] as
-        | SchemaAST.ExamplesAnnotation<unknown>
-        | undefined
+    const examples = pipe(
+      Option.fromNullable(annotations[SchemaAST.ExamplesAnnotationId]),
+      Option.flatMap(decodeExamplesAnnotation)
     );
-    const documentation = Option.fromNullable<
-      SchemaAST.DocumentationAnnotation
-    >(
-      annotations[SchemaAST.DocumentationAnnotationId] as
-        | SchemaAST.DocumentationAnnotation
-        | undefined
+    const documentation = pipe(
+      Option.fromNullable(annotations[SchemaAST.DocumentationAnnotationId]),
+      Option.flatMap(decodeStringAnnotation)
     );
     const constraints = pipe(
       Option.fromNullable(annotations[ConstraintsAnnotationId]),

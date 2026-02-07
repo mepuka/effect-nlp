@@ -7,7 +7,7 @@
 export * from "./Core/index.js";
 
 // Wink-NLP integration
-export * from "./Wink/index.js";
+export * as Wink from "./Wink/index.js";
 
 // Compromise.js integration (future)
 // export * from "./Compromise/index.js";

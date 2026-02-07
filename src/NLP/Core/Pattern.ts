@@ -387,7 +387,9 @@ export const MarkRange = Schema.Tuple(Schema.Int, Schema.Int).pipe(
   })
 );
 
-export class Pattern extends Schema.TaggedClass<Pattern>("Pattern")("Pattern", {
+export class Pattern extends Schema.TaggedClass<Pattern>(
+  "effect-nlp/Pattern/Model"
+)("Pattern", {
   id: PatternId,
   elements: Schema.ChunkFromSelf(Schema.asSchema(PatternElement)).pipe(
     Schema.annotations({

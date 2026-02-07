@@ -39,12 +39,15 @@ export interface SchemaContext {
   readonly annotations: Annotations.Context;
 }
 
-export const buildSchemaASTTree = <A, I, R>(
-  entity: Entity<A, I, R>
-): Effect.Effect<SchemaASTTree, never, R> =>
+export const buildSchemaASTTree = <
+  A extends Readonly<Record<string, unknown>>,
+  I extends Readonly<Record<string, unknown>> = A,
+>(
+  entity: Entity<A, I>
+): Effect.Effect<SchemaASTTree> =>
   Effect.sync(() => {
-    const genericTree = buildGenericSchemaAstTree(entity, {
-      context: (info) => createSchemaContext(info),
+    const genericTree = buildGenericSchemaAstTree<SchemaContext>(entity, {
+      context: createSchemaContext,
     });
 
     let nodeMap = HashMap.empty<string, SchemaASTNode>();
@@ -227,10 +230,10 @@ const createSchemaContext = (
   const parentEntityId = Option.fromNullable(
     info.annotations[ParentEntityIdAnnotationId] as EntityId | undefined
   );
-  const identifier = Option.fromNullable<SchemaAST.IdentifierAnnotation>(
-    info.annotations[SchemaAST.IdentifierAnnotationId] as
-      | SchemaAST.IdentifierAnnotation
-      | undefined
+  const identifier = Option.fromNullable(
+    info.annotations[
+      SchemaAST.IdentifierAnnotationId
+    ] as SchemaAST.IdentifierAnnotation | undefined
   );
   const title = pipe(
     annotationsContext.core,
@@ -317,7 +320,7 @@ const deriveSemanticFromAst = (ast: SchemaAST.AST): string => {
     case "Declaration":
       return "declaration";
     default:
-      return ast._tag;
+      return "unknown";
   }
 };
 

@@ -13,7 +13,6 @@ import {
   Data,
   Function,
 } from "effect";
-import type { Pipeable } from "effect/Pipeable";
 import type { TokenIndex } from "./Token.js";
 import type { SentenceIndex } from "./Sentence.js";
 import { Token } from "./Token.js";
@@ -28,8 +27,8 @@ export const DocumentId = Schema.String.pipe(Schema.brand("DocumentId"));
 /**
  * Document type with unique symbol typeId and pipeable interface
  */
-export interface Document extends Pipeable {
-  readonly [Document.TypeId]: Document.TypeId;
+export interface Document {
+  readonly [Document.TypeId]?: Document.TypeId;
   readonly id: DocumentId;
   readonly text: Schema.Schema.Type<typeof Schema.String>;
   readonly tokens: Chunk.Chunk<Token>;

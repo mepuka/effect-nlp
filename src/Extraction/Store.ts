@@ -5,7 +5,7 @@
  * Effect Platform's KeyValueStore with schema validation.
  */
 
-import { Data, Effect, Schema, pipe, Option, Console, DateTime } from "effect";
+import { Data, Effect, Schema, Option, Console, DateTime } from "effect";
 import type { SchemaStore } from "@effect/platform/KeyValueStore";
 import { KeyValueStore, layerMemory } from "@effect/platform/KeyValueStore";
 import type { Entity } from "./Entity.js";
@@ -17,10 +17,8 @@ import {
   getSchemaId,
 } from "./Entity.js";
 import { Annotations } from "./Annotations.js";
-import type { Provenance} from "./Provenance.js";
+import type { Provenance } from "./Provenance.js";
 import { ProvenanceHistory } from "./Provenance.js";
-import type { BadArgument, SystemError } from "@effect/platform/Error";
-import type { ParseError } from "effect/Cron";
 
 // ============================================================================
 // ENTITY STORE SCHEMA
@@ -105,7 +103,7 @@ export interface EntityStore {
 
   // Core operations - using non-generic signatures for accessor compatibility
   readonly storeEntity: (
-    entity: Entity<any, any>,
+    entity: Entity<any, any, unknown>,
     options?: StoreEntityOptions
   ) => Effect.Effect<void, SchemaSerializationError, never>;
 
@@ -140,7 +138,7 @@ const entityKey = (entityId: EntityId): string => `entity#${entityId}`;
  * Serialize schema definition for storage using Effect error handling
  */
 const serializeSchema = (
-  entity: Entity<any, any>
+  entity: Entity<any, any, unknown>
 ): Effect.Effect<StoredSchema, SchemaSerializationError, never> =>
   Effect.try({
     try: () => {
@@ -209,18 +207,38 @@ export class EntityStoreService extends Effect.Service<EntityStoreService>()(
         kv.forSchema(EntityStoreEntry);
 
       const storeEntity = (
-        entity: Entity<any, any>,
-        _options?: StoreEntityOptions
+        entity: Entity<any, any, unknown>,
+        options?: StoreEntityOptions
       ) =>
         Effect.gen(function* () {
           const storedSchema = yield* serializeSchema(entity);
           const entityId = getEntityId(entity);
+          const now = DateTime.unsafeFromDate(new Date());
+          const valueSnapshot =
+            options?.value === undefined
+              ? undefined
+              : yield* Effect.try({
+                  try: () =>
+                    EntityValueSnapshot.make({
+                      json: JSON.stringify(options.value),
+                      recordedAt: DateTime.unsafeFromDate(
+                        options.recordedAt ?? new Date()
+                      ),
+                    }),
+                  catch: (cause) =>
+                    new SchemaSerializationError({
+                      cause,
+                      operation: "serializeValueSnapshot",
+                    }),
+                });
 
           const entry = EntityStoreEntry.make({
             entityId,
-            createdAt: DateTime.unsafeFromDate(new Date()),
-            updatedAt: DateTime.unsafeFromDate(new Date()),
+            createdAt: now,
+            updatedAt: now,
             schema: storedSchema,
+            valueSnapshot,
+            provenance: options?.provenance ?? [],
           });
           const key = entityKey(entityId);
           yield* entityStore.set(key, entry);
@@ -230,14 +248,7 @@ export class EntityStoreService extends Effect.Service<EntityStoreService>()(
       const retrieveEntity = (entityId: EntityId) =>
         Effect.gen(function* () {
           const key = entityKey(entityId);
-          const entry = yield* entityStore.get(key);
-          return pipe(
-            entry,
-            Option.map((e) => ({
-              schemaJson: e.schema,
-              schemaAst: e.schema,
-            }))
-          );
+          return yield* entityStore.get(key);
         });
 
       const removeEntity = (entityId: EntityId) =>
@@ -283,22 +294,17 @@ export class EntityStoreService extends Effect.Service<EntityStoreService>()(
 /**
  * Store an entity with automatic serialization
  */
-export const storeEntity = <A extends Schema.Struct.Fields>(
-  entity: Entity<A>
-): Effect.Effect<
-  void,
-  | SchemaSerializationError
-  | SchemaSerializationError
-  | BadArgument
-  | ParseError
-  | SystemError,
-  EntityStoreService
-> =>
+export const storeEntity = <
+  A extends Readonly<Record<string, unknown>>,
+  I extends Readonly<Record<string, unknown>> = A,
+  R = never,
+>(
+  entity: Entity<A, I, R>,
+  options?: StoreEntityOptions
+): Effect.Effect<void, SchemaSerializationError, EntityStoreService> =>
   Effect.gen(function* () {
-    const schemaJson = yield* serializeSchema(entity);
     const entityStore = yield* EntityStoreService;
-
-    yield* entityStore.storeEntity(entity, { schemaJson });
+    yield* entityStore.storeEntity(entity, options);
   }).pipe(
     Effect.mapError(
       (cause) =>

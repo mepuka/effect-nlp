@@ -5,7 +5,6 @@
  */
 
 import { Schema, type Brand, Option, Chunk, Data, Function } from "effect";
-import type { Pipeable } from "effect/Pipeable";
 import type { Token } from "./Token.js";
 import { TokenIndex } from "./Token.js";
 
@@ -18,8 +17,8 @@ export const SentenceIndex = Schema.Number.pipe(Schema.brand("SentenceIndex"));
 /**
  * Sentence type with unique symbol typeId and pipeable interface
  */
-export interface Sentence extends Pipeable {
-  readonly [Sentence.TypeId]: Sentence.TypeId;
+export interface Sentence {
+  readonly [Sentence.TypeId]?: Sentence.TypeId;
   readonly text: string;
   readonly index: SentenceIndex;
   readonly tokens: Chunk.Chunk<Token>;

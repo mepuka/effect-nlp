@@ -4,7 +4,7 @@
  * @since 3.0.0
  */
 
-import { Effect, Data, Layer, Chunk, Option, Ref } from "effect";
+import { Effect, Data, Layer, Chunk, Option, Ref, Schema, Context } from "effect";
 import { WinkEngine } from "./WinkEngine.js";
 import type { Document } from "../Core/Document.js";
 import { DocumentId } from "../Core/Document.js";
@@ -115,6 +115,10 @@ export const DefaultBM25Config: BM25Config = {
   norm: "none",
 };
 
+const BM25ConfigTag = Context.GenericTag<Partial<BM25Config>>(
+  "effect-nlp/WinkVectorizer/BM25Config"
+);
+
 /**
  * Document vector representation
  */
@@ -191,9 +195,16 @@ export class WinkVectorizer extends Effect.Service<WinkVectorizer>()(
     effect: Effect.gen(function* () {
       const engine = yield* WinkEngine;
       const its = yield* engine.its;
+      const customConfigOption = yield* Effect.serviceOption(BM25ConfigTag);
 
       // Initialize vectorizer state with Ref
-      const config = DefaultBM25Config;
+      const config = Option.match(customConfigOption, {
+        onNone: () => DefaultBM25Config,
+        onSome: (customConfig) => ({
+          ...DefaultBM25Config,
+          ...customConfig,
+        }),
+      });
       const stateRef = yield* Ref.make<VectorizerState>({
         vectorizer: BM25Vectorizer(config),
         documentIds: [],
@@ -209,7 +220,10 @@ export class WinkVectorizer extends Effect.Service<WinkVectorizer>()(
       ): Array<string> =>
         Chunk.toArray(
           Chunk.map(tokens, (token) =>
-            Option.getOrElse(token.normal, () => token.text)
+            Option.match(token.normal, {
+              onNone: () => token.text,
+              onSome: (normal) => normal ?? token.text,
+            })
           )
         );
 
@@ -445,7 +459,8 @@ export class WinkVectorizer extends Effect.Service<WinkVectorizer>()(
         exportModel: () =>
           Effect.gen(function* () {
             const state = yield* Ref.get(stateRef);
-            return JSON.stringify(state.vectorizer.out(its.modelJSON));
+            const encodeModel = Schema.encode(Schema.parseJson(Schema.Unknown));
+            return yield* encodeModel(state.vectorizer.out(its.modelJSON));
           }).pipe(
             Effect.mapError(
               (error) =>
@@ -461,9 +476,8 @@ export class WinkVectorizer extends Effect.Service<WinkVectorizer>()(
          */
         loadModel: (modelJson: string) =>
           Effect.gen(function* () {
-            const model = JSON.parse(modelJson);
             const state = yield* Ref.get(stateRef);
-            state.vectorizer.loadModel(model);
+            state.vectorizer.loadModel(modelJson);
           }).pipe(
             Effect.mapError(
               (error) =>
@@ -511,7 +525,11 @@ export const WinkVectorizerLive = WinkVectorizer.Default;
  * Live implementation of WinkVectorizer with custom config
  */
 export const WinkVectorizerWithConfig = (_config?: Partial<BM25Config>) =>
-  Layer.effect(WinkVectorizer, WinkVectorizer);
+  _config === undefined
+    ? WinkVectorizer.Default
+    : WinkVectorizer.Default.pipe(
+        Layer.provide(Layer.succeed(BM25ConfigTag, _config))
+      );
 
 /**
  * Data-first convenience functions

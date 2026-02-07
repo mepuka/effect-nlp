@@ -1,336 +1,204 @@
-/**
- * WinkTokenizer Service
- * Effect.Service implementation for wink-nlp tokenization with WinkEngine dependency
- * @since 3.0.0
- */
-
-import { Effect, Chunk, Option } from "effect";
+import { Chunk, Effect, Layer, Option } from "effect";
 import type { ItemToken } from "wink-nlp";
-import { Token, TokenIndex, CharPosition } from "../Core/Token.js";
-import { Sentence, SentenceIndex } from "../Core/Sentence.js";
+import { CharPosition, Token, TokenIndex } from "../Core/Token.js";
 import { Document, DocumentId } from "../Core/Document.js";
+import { Sentence, SentenceIndex } from "../Core/Sentence.js";
+import {
+  Tokenization,
+  TokenizationError,
+} from "../Core/Tokenization.js";
 import { WinkEngine } from "./WinkEngine.js";
-import type { WinkError } from "./WinkEngine.js";
+import { WinkEngineRefLive } from "./WinkEngineRef.js";
+import type { WinkError } from "./WinkErrors.js";
 
-/**
- * Convert wink token to our Token model using proper wink-nlp its API
- * Based on https://winkjs.org/wink-nlp/its-as-helper.html
- */
-interface TokenConversionResult {
-  readonly token: Token;
-  readonly nextOffset: number;
-}
+const makeTokenizationError =
+  (operation: string) =>
+  (cause: WinkError): TokenizationError =>
+    new TokenizationError({ operation, cause });
 
-const convertWinkToken = (
+const getSpan = (value: unknown): readonly [number, number] | undefined => {
+  if (
+    Array.isArray(value) &&
+    value.length >= 2 &&
+    typeof value[0] === "number" &&
+    typeof value[1] === "number"
+  ) {
+    return [value[0], value[1]];
+  }
+  return undefined;
+};
+
+const makeToken = (
   winkToken: ItemToken,
   index: number,
   its: any,
-  currentOffset: number
-): TokenConversionResult => {
-  // Get all available token properties using wink its API
-  const text = winkToken.out(); // its.value is default
-  const pos = winkToken.out(its.pos);
-  const lemma = winkToken.out(its.lemma);
-  const stem = winkToken.out(its.stem);
-  const normal = winkToken.out(its.normal);
-  const shape = winkToken.out(its.shape);
-  const prefix = winkToken.out(its.prefix);
-  const suffix = winkToken.out(its.suffix);
-  const case_ = winkToken.out(its.case);
-  const uniqueId = winkToken.out(its.uniqueId);
-  const abbrevFlag = winkToken.out(its.abbrevFlag);
-  const contractionFlag = winkToken.out(its.contractionFlag);
-  const stopWordFlag = winkToken.out(its.stopWordFlag);
-  const negationFlag = winkToken.out(its.negationFlag);
-  const precedingSpaces = winkToken.out(its.precedingSpaces);
-
-  // Track character positions by accumulating preceding whitespace length
-  const precedingSpacesText =
-    typeof precedingSpaces === "string" ? precedingSpaces : "";
-  const tokenText = typeof text === "string" ? text : String(text ?? "");
-  const start = currentOffset + precedingSpacesText.length;
-  const end = start + tokenText.length;
+  previousEnd: number
+): readonly [Token, number] => {
+  const text = String(winkToken.out() ?? "");
+  const preceding = String(winkToken.out(its.precedingSpaces) ?? "");
+  const start = previousEnd + preceding.length;
+  const end = start + text.length;
 
   const token = Token.make({
-    text: tokenText,
+    text,
     index: TokenIndex.make(index),
     start: CharPosition.make(start),
     end: CharPosition.make(end),
-    pos:
-      typeof pos === "string" && pos.length > 0
-        ? Option.some(pos)
-        : Option.none<string>(),
-    lemma:
-      typeof lemma === "string" && lemma.length > 0
-        ? Option.some(lemma)
-        : Option.none<string>(),
-    stem:
-      typeof stem === "string" && stem.length > 0
-        ? Option.some(stem)
-        : Option.none<string>(),
-    normal:
-      typeof normal === "string" && normal.length > 0
-        ? Option.some(normal)
-        : Option.none<string>(),
-    shape:
-      typeof shape === "string" && shape.length > 0
-        ? Option.some(shape)
-        : Option.none<string>(),
-    prefix:
-      typeof prefix === "string" && prefix.length > 0
-        ? Option.some(prefix)
-        : Option.none<string>(),
-    suffix:
-      typeof suffix === "string" && suffix.length > 0
-        ? Option.some(suffix)
-        : Option.none<string>(),
-    case:
-      typeof case_ === "string" && case_.length > 0
-        ? Option.some(case_)
-        : Option.none<string>(),
-    uniqueId:
-      typeof uniqueId === "number" && Number.isFinite(uniqueId)
-        ? Option.some(uniqueId)
-        : Option.none<number>(),
-    abbrevFlag:
-      typeof abbrevFlag === "boolean"
-        ? Option.some(abbrevFlag)
-        : Option.none<boolean>(),
-    contractionFlag:
-      typeof contractionFlag === "boolean"
-        ? Option.some(contractionFlag)
-        : Option.none<boolean>(),
-    stopWordFlag:
-      typeof stopWordFlag === "boolean"
-        ? Option.some(stopWordFlag)
-        : Option.none<boolean>(),
-    negationFlag:
-      typeof negationFlag === "boolean"
-        ? Option.some(negationFlag)
-        : Option.none<boolean>(),
+    pos: Option.none(),
+    lemma: Option.none(),
+    stem: Option.none(),
+    normal: Option.none(),
+    shape: Option.none(),
+    prefix: Option.none(),
+    suffix: Option.none(),
+    case: Option.none(),
+    uniqueId: Option.none(),
+    abbrevFlag: Option.none(),
+    contractionFlag: Option.none(),
+    stopWordFlag: Option.none(),
+    negationFlag: Option.none(),
     precedingSpaces:
-      precedingSpacesText.length > 0
-        ? Option.some(precedingSpacesText)
-        : Option.none<string>(),
+      preceding.length > 0 ? Option.some(preceding) : Option.none(),
     tags: [],
   });
-  return { token, nextOffset: end };
+
+  return [token, end] as const;
 };
 
-/**
- * Convert wink sentence to our Sentence model
- */
-const convertWinkSentence = (
-  winkSentence: any,
-  index: number,
+const collectTokens = (doc: any, its: any): Chunk.Chunk<Token> => {
+  const tokensCursor = doc.tokens();
+  const buffer: Array<Token> = [];
+  let offset = 0;
+
+  tokensCursor.each((winkToken: ItemToken, index: number) => {
+    const [token, nextOffset] = makeToken(winkToken, index, its, offset);
+    buffer.push(token);
+    offset = nextOffset;
+  });
+
+  return Chunk.fromIterable(buffer);
+};
+
+const collectSentences = (
+  doc: any,
   tokens: Chunk.Chunk<Token>,
   its: any
-): Sentence => {
-  const text = winkSentence.out();
-  const sentiment = winkSentence.out(its.sentiment);
-  const negationFlag = winkSentence.out(its.negationFlag);
-  const markedUpText = winkSentence.out(its.markedUpText);
-  const span = winkSentence.out(its.span);
+): Chunk.Chunk<Sentence> => {
+  const sentencesCursor = doc.sentences();
+  const tokenArray = Chunk.toReadonlyArray(tokens);
+  const sentences: Array<Sentence> = [];
 
-  return new Sentence({
-    text: text || "",
-    index: SentenceIndex.make(index),
+  sentencesCursor.each((winkSentence: any, index: number) => {
+    const text = String(winkSentence.out() ?? "");
+    const span = getSpan(winkSentence.out(its.span));
+    const [startTokenIndex, endTokenIndex] = span ?? [0, tokenArray.length];
+
+    const sentenceTokens = tokenArray.filter(
+      (_, tokenIndex) =>
+        tokenIndex >= startTokenIndex && tokenIndex < endTokenIndex
+    );
+
+    const sentenceChunk = Chunk.fromIterable(sentenceTokens);
+    const firstToken = sentenceTokens[0];
+    const lastToken = sentenceTokens[sentenceTokens.length - 1];
+
+    sentences.push(
+      Sentence.make({
+        text,
+        index: SentenceIndex.make(index),
+        tokens: sentenceChunk,
+        start:
+          firstToken !== undefined
+            ? firstToken.index
+            : TokenIndex.make(0),
+        end:
+          lastToken !== undefined
+            ? lastToken.index
+            : TokenIndex.make(0),
+        sentiment: Option.none(),
+        importance: Option.none(),
+        negationFlag: Option.none(),
+        markedUpText: Option.none(),
+      })
+    );
+  });
+
+  return Chunk.fromIterable(sentences);
+};
+
+const buildDocument = (
+  text: string,
+  id: DocumentId | string | undefined,
+  tokens: Chunk.Chunk<Token>,
+  sentences: Chunk.Chunk<Sentence>,
+  doc: any,
+  its: any
+): Document => {
+  const sentiment = doc.out(its.sentiment);
+  const documentId =
+    typeof id === "string"
+      ? DocumentId.make(id)
+      : id ?? DocumentId.make(`doc-${Date.now()}`);
+
+  return Document.make({
+    id: documentId,
+    text,
     tokens,
-    start: TokenIndex.make(span?.[0] ?? 0),
-    end: TokenIndex.make(span?.[1] ?? Chunk.size(tokens) - 1),
+    sentences,
     sentiment:
-      typeof sentiment === "number" ? Option.some(sentiment) : Option.none(),
-    importance: Option.none(),
-    negationFlag:
-      typeof negationFlag === "boolean"
-        ? Option.some(negationFlag)
+      typeof sentiment === "number"
+        ? Option.some(sentiment)
         : Option.none(),
-    markedUpText: markedUpText ? Option.some(markedUpText) : Option.none(),
   });
 };
 
-/**
- * WinkTokenizer Service Definition
- */
-export class WinkTokenizer extends Effect.Service<WinkTokenizer>()(
-  "effect-nlp/WinkTokenizer",
-  {
-    effect: Effect.gen(function* () {
-      const engine = yield* WinkEngine;
-
-      return {
-        /**
-         * Tokenize text into Token array with full wink properties
-         */
-        tokenize: (
-          text: string
-        ): Effect.Effect<Chunk.Chunk<Token>, WinkError> =>
-          Effect.gen(function* () {
-            const rawTokens = yield* engine.getWinkTokens(text);
-            const its = yield* engine.its;
-            const tokens: Array<Token> = [];
-            let offset = 0;
-            rawTokens.forEach((token, index) => {
-              const conversion = convertWinkToken(token, index, its, offset);
-              tokens.push(conversion.token);
-              offset = conversion.nextOffset;
-            });
-            return Chunk.fromIterable(tokens);
-          }),
-
-        /**
-         * Get sentences with full wink properties
-         */
-        getSentences: (
-          text: string
-        ): Effect.Effect<Chunk.Chunk<Sentence>, WinkError> =>
-          Effect.gen(function* () {
-            const doc = yield* engine.getWinkDoc(text);
-            const sentences = doc.sentences();
-            const allTokens = yield* engine.getWinkTokens(text);
-            const its = yield* engine.its;
-            const tokenBuffer: Array<Token> = [];
-            let offset = 0;
-            allTokens.forEach((token, index) => {
-              const conversion = convertWinkToken(token, index, its, offset);
-              tokenBuffer.push(conversion.token);
-              offset = conversion.nextOffset;
-            });
-            const tokenObjects = Chunk.fromIterable(tokenBuffer);
-
-            return Chunk.fromIterable(sentences.out()).pipe(
-              Chunk.map((sentenceText, index) => {
-                const sentence = sentences.itemAt(index);
-                const span = sentence.out(its.span);
-                const sentenceTokens = span
-                  ? Chunk.take(
-                      Chunk.drop(tokenObjects, span[0]),
-                      span[1] - span[0] + 1
-                    )
-                  : Chunk.empty<Token>();
-
-                return convertWinkSentence(
-                  sentence,
-                  index,
-                  sentenceTokens,
-                  its
-                );
-              })
-            );
-          }),
-
-        /**
-         * Tokenize text and create clean Document with pure NLP properties
-         */
-        tokenizeToDocument: (
-          text: string,
-          id?: string
-        ): Effect.Effect<Document, WinkError> =>
-          Effect.gen(function* () {
-            const tokens = yield* engine.getWinkTokens(text);
-            const its = yield* engine.its;
-
-            // Convert tokens
-            const tokenArray: Array<Token> = [];
-            let offset = 0;
-            tokens.forEach((token, index) => {
-              const conversion = convertWinkToken(token, index, its, offset);
-              tokenArray.push(conversion.token);
-              offset = conversion.nextOffset;
-            });
-            const tokenObjects = Chunk.fromIterable(tokenArray);
-
-            // Get sentences
-            const doc = yield* engine.getWinkDoc(text);
-            const sentences = doc.sentences();
-            const sentenceObjects = Chunk.fromIterable(sentences.out()).pipe(
-              Chunk.map((sentenceText, index) => {
-                const sentence = sentences.itemAt(index);
-                const span = sentence.out(its.span);
-                const sentenceTokens = span
-                  ? Chunk.take(
-                      Chunk.drop(tokenObjects, span[0]),
-                      span[1] - span[0] + 1
-                    )
-                  : Chunk.empty<Token>();
-
-                return convertWinkSentence(
-                  sentence,
-                  index,
-                  sentenceTokens,
-                  its
-                );
-              })
-            );
-
-            // Get document-level NLP properties
-            const sentiment = doc.out(its.sentiment);
-
-            return new Document({
-              id: DocumentId.make(id || `doc-${Date.now()}`),
-              text,
-              tokens: tokenObjects,
-              sentences: sentenceObjects,
-              sentiment:
-                typeof sentiment === "number"
-                  ? Option.some(sentiment)
-                  : Option.none(),
-            });
-          }),
-
-        /**
-         * Get token count (efficient)
-         */
-        getWinkTokenCount: (text: string): Effect.Effect<number, WinkError> =>
-          engine.getWinkTokenCount(text),
-      };
-    }),
-    dependencies: [WinkEngine.Default],
-  }
-) {}
-
-/**
- * Live layer for WinkTokenizer
- */
-export const WinkTokenizerLive = WinkTokenizer.Default;
-
-/**
- * Test layer for WinkTokenizer
- */
-
-/**
- * Data-first convenience functions
- */
-
-export const tokenize = (
-  text: string
-): Effect.Effect<Chunk.Chunk<Token>, WinkError, WinkTokenizer> =>
+const baseLayer = Layer.effect(
+  Tokenization,
   Effect.gen(function* () {
-    const tokenizer = yield* WinkTokenizer;
-    return yield* tokenizer.tokenize(text);
-  });
+    const engine = yield* WinkEngine;
 
-export const getSentences = (
-  text: string
-): Effect.Effect<Chunk.Chunk<Sentence>, WinkError, WinkTokenizer> =>
-  Effect.gen(function* () {
-    const tokenizer = yield* WinkTokenizer;
-    return yield* tokenizer.getSentences(text);
-  });
+    const tokenize = (text: string) =>
+      Effect.gen(function* () {
+        const doc = yield* engine.getWinkDoc(text);
+        const its = yield* engine.its;
+        return collectTokens(doc, its);
+      }).pipe(Effect.mapError(makeTokenizationError("tokenize")));
 
-export const tokenizeToDocument = (
-  text: string,
-  id?: string
-): Effect.Effect<Document, WinkError, WinkTokenizer> =>
-  Effect.gen(function* () {
-    const tokenizer = yield* WinkTokenizer;
-    return yield* tokenizer.tokenizeToDocument(text, id);
-  });
+    const sentences = (text: string) =>
+      Effect.gen(function* () {
+        const doc = yield* engine.getWinkDoc(text);
+        const its = yield* engine.its;
+        const tokensChunk = collectTokens(doc, its);
+        return collectSentences(doc, tokensChunk, its);
+      }).pipe(Effect.mapError(makeTokenizationError("sentences")));
 
-export const getWinkTokenCount = (
-  text: string
-): Effect.Effect<number, WinkError, WinkTokenizer> =>
-  Effect.gen(function* () {
-    const tokenizer = yield* WinkTokenizer;
-    return yield* tokenizer.getWinkTokenCount(text);
-  });
+    const document = (text: string, id?: DocumentId | string) =>
+      Effect.gen(function* () {
+        const doc = yield* engine.getWinkDoc(text);
+        const its = yield* engine.its;
+        const tokensChunk = collectTokens(doc, its);
+        const sentencesChunk = collectSentences(doc, tokensChunk, its);
+        return buildDocument(text, id, tokensChunk, sentencesChunk, doc, its);
+      }).pipe(Effect.mapError(makeTokenizationError("document")));
+
+    const tokenCount = (text: string) =>
+      Effect.gen(function* () {
+        const doc = yield* engine.getWinkDoc(text);
+        return doc.tokens().length();
+      }).pipe(Effect.mapError(makeTokenizationError("tokenCount")));
+
+    return {
+      tokenize,
+      sentences,
+      document,
+      tokenCount,
+    };
+  })
+);
+
+export const WinkTokenization = baseLayer;
+
+export const WinkTokenizationLive = baseLayer.pipe(
+  Layer.provide(WinkEngine.Default),
+  Layer.provide(WinkEngineRefLive)
+);

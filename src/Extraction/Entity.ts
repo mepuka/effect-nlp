@@ -23,8 +23,8 @@ export const SchemaId = Schema.String.pipe(Schema.brand("SchemaId"));
 export type EntityFieldId = Schema.Schema.Type<typeof EntityFieldId>;
 export const EntityFieldId = Schema.TemplateLiteral(
   Schema.Literal("field##"),
-  EntityId
-);
+  Schema.String
+).pipe(Schema.brand("EntityFieldId"));
 
 // ============================================================================
 // ANNOTATIONS
@@ -140,17 +140,23 @@ export const isEntityPropertySignature = (
 
 const stampASTRecursively = (
   ast: SchemaAST.AST,
-  entityId: EntityId
+  entityId: EntityId,
+  parentPath: ReadonlyArray<PropertyKey> = []
 ): SchemaAST.AST => {
   if (ast._tag !== "TypeLiteral") return ast;
 
   const signatures = SchemaAST.getPropertySignatures(ast);
   const stampedSignatures = signatures.map((sig) => {
+    const currentPath = Array.append(parentPath, sig.name);
+
     // Recursively stamp if the type is also a TypeLiteral
     const stampedType =
       sig.type._tag === "TypeLiteral"
-        ? stampASTRecursively(sig.type, entityId)
+        ? stampASTRecursively(sig.type, entityId, currentPath)
         : sig.type;
+
+    const fieldPath = currentPath.map((segment) => String(segment)).join(".");
+    const fieldId = EntityFieldId.make(`field##${entityId}:${fieldPath}`);
 
     return new SchemaAST.PropertySignature(
       sig.name,
@@ -159,9 +165,7 @@ const stampASTRecursively = (
       sig.isReadonly,
       {
         ...sig.annotations,
-        [EntityFieldIdAnnotationId]: Schema.decodeSync(EntityFieldId)(
-          `field##${entityId}`
-        ),
+        [EntityFieldIdAnnotationId]: fieldId,
       }
     );
   });
@@ -183,12 +187,11 @@ export const createEntityFieldMatch = (): SchemaAST.Match<Array<string>> => ({
 
     // Check if current AST node is an entity field
     if (isEntityField(ast)) {
-      const fieldId = ast.annotations[EntityFieldIdAnnotationId] as string;
+      const fieldId = ast.annotations[EntityFieldIdAnnotationId];
       const pathStr = path.length > 0 ? path.join(".") : "root";
-      signatures = Array.append(
-        signatures,
-        `${pathStr}:${ast._tag}:${fieldId}`
-      );
+      if (typeof fieldId === "string") {
+        signatures = Array.append(signatures, `${pathStr}:${ast._tag}:${fieldId}`);
+      }
     }
 
     // Process property signatures - check their annotations for entity fields
@@ -197,14 +200,16 @@ export const createEntityFieldMatch = (): SchemaAST.Match<Array<string>> => ({
       if (isEntityPropertySignature(property)) {
         const entityFieldAnnotation = property.annotations[
           EntityFieldIdAnnotationId
-        ] as string;
-        const pathStr = path.length > 0 ? path.join(".") : "root";
-        signatures = Array.append(
-          signatures,
-          `${pathStr}.${String(
-            property.name
-          )}:PropertySignature:${entityFieldAnnotation}`
-        );
+        ];
+        if (typeof entityFieldAnnotation === "string") {
+          const pathStr = path.length > 0 ? path.join(".") : "root";
+          signatures = Array.append(
+            signatures,
+            `${pathStr}.${String(
+              property.name
+            )}:PropertySignature:${entityFieldAnnotation}`
+          );
+        }
       }
 
       const childPath = Array.append(path, property.name);
@@ -215,17 +220,35 @@ export const createEntityFieldMatch = (): SchemaAST.Match<Array<string>> => ({
     return signatures;
   },
 
-  // Handle Union types
-  Union: () => [],
+  Union: (ast, compile, path) => {
+    let signatures: Array<string> = [];
+    ast.types.forEach((type, index) => {
+      const childPath = Array.append(path, `union_${index}`);
+      signatures = Array.appendAll(signatures, compile(type, childPath));
+    });
+    return signatures;
+  },
 
-  // Handle Tuple types
-  TupleType: () => [],
+  TupleType: (ast, compile, path) => {
+    let signatures: Array<string> = [];
+    ast.elements.forEach((element, index) => {
+      const childPath = Array.append(path, `tuple_${index}`);
+      signatures = Array.appendAll(signatures, compile(element.type, childPath));
+    });
+    ast.rest.forEach((restType, index) => {
+      const childPath = Array.append(path, `rest_${index}`);
+      signatures = Array.appendAll(signatures, compile(restType.type, childPath));
+    });
+    return signatures;
+  },
 
-  // Handle Refinement types
-  Refinement: () => [],
+  Refinement: (ast, compile, path) => compile(ast.from, path),
 
-  // Handle Transformation types
-  Transformation: () => [],
+  Transformation: (ast, compile, path) =>
+    Array.appendAll(
+      compile(ast.from, Array.append(path, "from")),
+      compile(ast.to, Array.append(path, "to"))
+    ),
 
   // Handle Suspend (recursive) types
   Suspend: () => [],
@@ -260,8 +283,15 @@ export const createEntityFieldMatch = (): SchemaAST.Match<Array<string>> => ({
   UniqueSymbol: () => [],
 
   // Handle declarations
-  Declaration: () => {
-    return [];
+  Declaration: (ast, compile, path) => {
+    let signatures: Array<string> = [];
+    ast.typeParameters.forEach((typeParameter, index) => {
+      signatures = Array.appendAll(
+        signatures,
+        compile(typeParameter, Array.append(path, `typeParameter_${index}`))
+      );
+    });
+    return signatures;
   },
 });
 
@@ -299,7 +329,19 @@ export type EntityArray<
 /**
  * Union type for all valid Entity schemas
  */
-export type EntitySchema = Entity<any> | EntityArray<any>;
+export type EntitySchema =
+  | Entity<Readonly<Record<string, unknown>>>
+  | EntityArray<ReadonlyArray<unknown>>;
+export type EntityWithMetadata<
+  A extends Readonly<Record<string, unknown>>,
+  I extends Readonly<Record<string, unknown>> = A,
+  R = never,
+> = Entity<A, I, R> & {
+  readonly _tag: "Entity";
+  readonly schema: Entity<A, I, R>;
+  readonly entityId: EntityId;
+  readonly schemaId: SchemaId;
+};
 
 /**
  * Type guard to ensure a schema has entity annotations
@@ -347,8 +389,10 @@ export const MakeEntitySchema = <
   schema: Schema.Schema<A, I, R>;
   name: string;
   entityId?: EntityId;
+  schemaId?: SchemaId;
 }): Entity<A, I, R> => {
   const entityId = options.entityId ?? MakeEntityId();
+  const schemaId = options.schemaId ?? MakeSchemaId(options.name);
 
   const stampedAST = stampASTRecursively(options.schema.ast, entityId);
 
@@ -357,7 +401,7 @@ export const MakeEntitySchema = <
       [EntityIdAnnotationId]: entityId,
       [SchemaAST.IdentifierAnnotationId]: entityId,
       [SchemaAST.DescriptionAnnotationId]: `Entity schema: ${options.name}`,
-      schemaId: MakeSchemaId(options.name),
+      [SchemaAST.SchemaIdAnnotationId]: schemaId,
     })
   ) as Entity<A, I, R>;
 };
@@ -373,8 +417,10 @@ export const MakeEntityArraySchema = <
   schema: Schema.Schema<A, I, R>;
   name: string;
   entityId?: EntityId;
+  schemaId?: SchemaId;
 }): EntityArray<A, I, R> => {
   const entityId = options.entityId ?? MakeEntityId();
+  const schemaId = options.schemaId ?? MakeSchemaId(options.name);
 
   const stampedAST = stampASTRecursively(options.schema.ast, entityId);
 
@@ -383,9 +429,50 @@ export const MakeEntityArraySchema = <
       [EntityIdAnnotationId]: entityId,
       [SchemaAST.IdentifierAnnotationId]: entityId,
       [SchemaAST.DescriptionAnnotationId]: `Entity array schema: ${options.name}`,
-      schemaId: MakeSchemaId(options.name),
+      [SchemaAST.SchemaIdAnnotationId]: schemaId,
     })
   ) as EntityArray<A, I, R>;
+};
+
+export const MakeEntity = (
+  schemaOrFields: Schema.Schema.Any | Schema.Struct.Fields,
+  options: {
+    readonly name: string;
+    readonly entityId?: EntityId;
+    readonly schemaId?: SchemaId;
+  }
+): EntityWithMetadata<Readonly<Record<string, unknown>>> => {
+  const schema =
+    Schema.isSchema(schemaOrFields)
+      ? schemaOrFields
+      : Schema.Struct(schemaOrFields);
+  const makeOptions: {
+    schema: Schema.Schema.Any;
+    name: string;
+    entityId?: EntityId;
+    schemaId?: SchemaId;
+  } = {
+    schema,
+    name: options.name,
+  };
+
+  if (options.entityId !== undefined) {
+    makeOptions.entityId = options.entityId;
+  }
+  if (options.schemaId !== undefined) {
+    makeOptions.schemaId = options.schemaId;
+  }
+
+  const entity = MakeEntitySchema(
+    makeOptions
+  ) as Entity<Readonly<Record<string, unknown>>>;
+
+  return Object.assign(entity, {
+    _tag: "Entity" as const,
+    schema: entity,
+    entityId: getEntityId(entity),
+    schemaId: getSchemaId(entity),
+  });
 };
 
 export const isEntitySchema = <

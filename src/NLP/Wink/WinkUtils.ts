@@ -971,7 +971,10 @@ export const propagateNegations = (input: TokensInput) =>
 export const tokensToTokensInput = (tokens: Chunk.Chunk<Token>): TokensInput =>
   TokensInput({
     tokens: Chunk.map(tokens, (token) =>
-      Option.getOrElse(token.normal, () => token.text)
+      Option.match(token.normal, {
+        onNone: () => token.text,
+        onSome: (normal) => normal ?? token.text,
+      })
     ),
   });
 

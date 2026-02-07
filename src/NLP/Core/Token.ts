@@ -5,7 +5,6 @@
  */
 
 import { Schema, type Brand, Option, Data, Function } from "effect";
-import type { Pipeable } from "effect/Pipeable";
 
 /**
  * Branded token index for type safety
@@ -22,7 +21,7 @@ export const CharPosition = Schema.Number.pipe(Schema.brand("CharPosition"));
 /**
  * Token type with unique symbol typeId and pipeable interface
  */
-export interface Token extends Pipeable {
+export interface Token {
   readonly text: string;
   readonly index: TokenIndex;
   readonly start: CharPosition;
