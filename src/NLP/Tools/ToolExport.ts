@@ -31,6 +31,17 @@ const USAGE_EXAMPLES: Record<string, ReadonlyArray<string>> = {
     'const { chunks } = await ChunkBySentences(text, 1500)',
     "const { chunkCount } = await ChunkBySentences(longDocument, 1200)"
   ],
+  CorpusStats: [
+    'const stats = await CorpusStats(corpusId, true, false, 20)',
+    "const { vocabularySize, idfValues } = await CorpusStats(corpusId, true)"
+  ],
+  CreateCorpus: [
+    "const { corpusId } = await CreateCorpus()",
+    'const corpus = await CreateCorpus("product-docs")'
+  ],
+  DeleteCorpus: [
+    "const { deleted } = await DeleteCorpus(corpusId)"
+  ],
   DocumentStats: [
     'const stats = await DocumentStats("Hello world. This is a test.")',
     "const { wordCount, sentenceCount } = await DocumentStats(text)"
@@ -54,6 +65,13 @@ const USAGE_EXAMPLES: Record<string, ReadonlyArray<string>> = {
   ],
   ExtractKeywords: [
     'const { keywords } = await ExtractKeywords("Machine learning processes data.", 5)'
+  ],
+  LearnCorpus: [
+    "await LearnCorpus(corpusId, [{ id: 'doc-1', text: 'Refund policy details' }])",
+    "await LearnCorpus(corpusId, docs, true)"
+  ],
+  QueryCorpus: [
+    'const { ranked } = await QueryCorpus(corpusId, "refund policy", 5, true)'
   ],
   RankByRelevance: [
     'const { ranked } = await RankByRelevance(texts, "key policy changes", 5)'

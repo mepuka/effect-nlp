@@ -7,9 +7,14 @@
 import { Chunk, Effect, Layer, Option } from "effect"
 import { Toolkit } from "@effect/ai"
 import { ChunkBySentences } from "./ChunkBySentences.js"
+import { CorpusStats } from "./CorpusStats.js"
+import { CreateCorpus } from "./CreateCorpus.js"
+import { DeleteCorpus } from "./DeleteCorpus.js"
 import { DocumentStats } from "./DocumentStats.js"
 import { ExtractEntities } from "./ExtractEntities.js"
 import { ExtractKeywords } from "./ExtractKeywords.js"
+import { LearnCorpus } from "./LearnCorpus.js"
+import { QueryCorpus } from "./QueryCorpus.js"
 import { RankByRelevance } from "./RankByRelevance.js"
 import { Sentences } from "./Sentences.js"
 import { Tokenize } from "./Tokenize.js"
@@ -17,6 +22,7 @@ import { TextSimilarity } from "./TextSimilarity.js"
 import { TransformText } from "./TransformText.js"
 import { Tokenization } from "../Core/Tokenization.js"
 import type { Token } from "../Core/Token.js"
+import { WinkCorpusManager } from "../Wink/WinkCorpusManager.js"
 import { WinkEngine } from "../Wink/WinkEngine.js"
 import { WinkVectorizer, type TermFrequency } from "../Wink/WinkVectorizer.js"
 import { CosineSimilarityRequest, WinkSimilarity } from "../Wink/WinkSimilarity.js"
@@ -25,9 +31,14 @@ import { WinkLayerLive } from "../Wink/Layer.js"
 
 export const NlpToolkit = Toolkit.make(
   ChunkBySentences,
+  CorpusStats,
+  CreateCorpus,
+  DeleteCorpus,
   DocumentStats,
   ExtractEntities,
   ExtractKeywords,
+  LearnCorpus,
+  QueryCorpus,
   RankByRelevance,
   Sentences,
   TextSimilarity,
@@ -119,6 +130,7 @@ const applyOperation = (
 
 export const NlpToolkitLive = NlpToolkit.toLayer(
   Effect.gen(function*() {
+    const corpusManager = yield* WinkCorpusManager
     const engine = yield* WinkEngine
     const tokenization = yield* Tokenization
     const vectorizer = yield* WinkVectorizer
@@ -199,6 +211,47 @@ export const NlpToolkitLive = NlpToolkit.toLayer(
             chunks,
             chunkCount: chunks.length,
             originalSentenceCount: sentenceArray.length
+          }
+        }).pipe(Effect.orDie),
+
+      CorpusStats: ({ corpusId, includeIdf, includeMatrix, topIdfTerms }) =>
+        corpusManager.getStats({
+          corpusId,
+          ...(includeIdf === undefined ? {} : { includeIdf }),
+          ...(includeMatrix === undefined ? {} : { includeMatrix }),
+          ...(topIdfTerms === undefined ? {} : { topIdfTerms })
+        }).pipe(Effect.orDie),
+
+      CreateCorpus: ({ bm25Config, corpusId }) =>
+        Effect.gen(function*() {
+          const normalizedConfig =
+            bm25Config === undefined
+              ? undefined
+              : {
+                  ...(bm25Config.k1 === undefined ? {} : { k1: bm25Config.k1 }),
+                  ...(bm25Config.b === undefined ? {} : { b: bm25Config.b }),
+                  ...(bm25Config.k === undefined ? {} : { k: bm25Config.k }),
+                  ...(bm25Config.norm === undefined ? {} : { norm: bm25Config.norm })
+                }
+
+          return yield* corpusManager.createCorpus(
+            normalizedConfig === undefined && corpusId === undefined
+              ? undefined
+              : {
+                  ...(corpusId === undefined ? {} : { corpusId }),
+                  ...(normalizedConfig === undefined
+                    ? {}
+                    : { bm25Config: normalizedConfig })
+                }
+          )
+        }).pipe(Effect.orDie),
+
+      DeleteCorpus: ({ corpusId }) =>
+        Effect.gen(function*() {
+          const deleted = yield* corpusManager.deleteCorpus(corpusId)
+          return {
+            corpusId,
+            deleted
           }
         }).pipe(Effect.orDie),
 
@@ -309,6 +362,33 @@ export const NlpToolkitLive = NlpToolkit.toLayer(
             return { keywords: sorted }
           })
         ).pipe(Effect.orDie),
+
+      LearnCorpus: ({ corpusId, dedupeById, documents }) =>
+        Effect.gen(function*() {
+          const timestamp = Date.now()
+          const docs = yield* Effect.forEach(
+            documents,
+            (document, index) =>
+              tokenization.document(
+                document.text,
+                document.id ?? `${corpusId}-doc-${timestamp}-${index}`
+              )
+          )
+
+          return yield* corpusManager.learnDocuments({
+            corpusId,
+            documents: Chunk.fromIterable(docs),
+            ...(dedupeById === undefined ? {} : { dedupeById })
+          })
+        }).pipe(Effect.orDie),
+
+      QueryCorpus: ({ corpusId, includeText, query, topN }) =>
+        corpusManager.query({
+          corpusId,
+          query,
+          ...(topN === undefined ? {} : { topN }),
+          ...(includeText === undefined ? {} : { includeText })
+        }).pipe(Effect.orDie),
 
       RankByRelevance: ({ query, texts, topN }) =>
         vectorizer.withFreshInstance((vec) =>

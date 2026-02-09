@@ -5,6 +5,10 @@
  */
 
 export {
+  AiCorpusIdfSchema,
+  AiCorpusRankedDocumentSchema,
+  AiCorpusStatsSchema,
+  AiCorpusSummarySchema,
   AiDocumentStatsSchema,
   AiEntitySchema,
   AiKeywordSchema,
@@ -20,6 +24,11 @@ export { TransformText } from "./TransformText.js"
 export { ExtractKeywords } from "./ExtractKeywords.js"
 export { DocumentStats } from "./DocumentStats.js"
 export { ChunkBySentences } from "./ChunkBySentences.js"
+export { CreateCorpus } from "./CreateCorpus.js"
+export { DeleteCorpus } from "./DeleteCorpus.js"
+export { LearnCorpus } from "./LearnCorpus.js"
+export { QueryCorpus } from "./QueryCorpus.js"
+export { CorpusStats } from "./CorpusStats.js"
 export { RankByRelevance } from "./RankByRelevance.js"
 export { ExtractEntities } from "./ExtractEntities.js"
 export { NlpToolkit, NlpToolkitLive } from "./NlpToolkit.js"

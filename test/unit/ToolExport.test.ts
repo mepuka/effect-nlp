@@ -13,9 +13,14 @@ import {
 
 const EXPECTED_TOOL_NAMES = [
   "ChunkBySentences",
+  "CorpusStats",
+  "CreateCorpus",
+  "DeleteCorpus",
   "DocumentStats",
   "ExtractEntities",
   "ExtractKeywords",
+  "LearnCorpus",
+  "QueryCorpus",
   "RankByRelevance",
   "Sentences",
   "TextSimilarity",
@@ -27,7 +32,7 @@ const EXPECTED_TOOL_NAMES = [
 const exportTools = Effect.succeed(Effect.runSync(exportToolsEffect))
 
 describe("ToolExport", () => {
-  it.effect("exports all 9 tools", () =>
+  it.effect("exports all 14 tools", () =>
     Effect.gen(function*() {
       const tools = yield* exportTools
       const names = tools.map((t) => t.name).slice().sort()
@@ -129,6 +134,118 @@ describe("ToolExport", () => {
         assert.strictEqual(r.chunkCount, 3)
         assert.strictEqual(r.originalSentenceCount, 3)
         assert.strictEqual(r.chunks.length, 3)
+      })
+    )
+
+    it.effect("CreateCorpus handles optional positional corpusId and config", () =>
+      Effect.gen(function*() {
+        const tools = yield* exportTools
+        const createCorpus = findTool(tools, "CreateCorpus")
+        assert.deepStrictEqual(createCorpus.parameterNames, [
+          "corpusId",
+          "bm25Config"
+        ])
+
+        const result = yield* createCorpus.handle([
+          "export-corpus",
+          { k1: 1.4, b: 0.7, k: 1, norm: "none" }
+        ])
+        assertIsObject(result)
+        const r = result as {
+          corpusId: string
+          documentCount: number
+          vocabularySize: number
+          config: { k1: number; b: number; k: number; norm: string }
+        }
+        assert.strictEqual(r.corpusId, "export-corpus")
+        assert.strictEqual(r.documentCount, 0)
+        assert.strictEqual(r.vocabularySize, 0)
+        assert.strictEqual(r.config.k1, 1.4)
+      })
+    )
+
+    it.effect("LearnCorpus, QueryCorpus, and CorpusStats handle positional args", () =>
+      Effect.gen(function*() {
+        const tools = yield* exportTools
+        const createCorpus = findTool(tools, "CreateCorpus")
+        const learnCorpus = findTool(tools, "LearnCorpus")
+        const queryCorpus = findTool(tools, "QueryCorpus")
+        const corpusStats = findTool(tools, "CorpusStats")
+
+        assert.deepStrictEqual(learnCorpus.parameterNames, [
+          "corpusId",
+          "documents",
+          "dedupeById"
+        ])
+        assert.deepStrictEqual(queryCorpus.parameterNames, [
+          "corpusId",
+          "query",
+          "topN",
+          "includeText"
+        ])
+        assert.deepStrictEqual(corpusStats.parameterNames, [
+          "corpusId",
+          "includeIdf",
+          "includeMatrix",
+          "topIdfTerms"
+        ])
+
+        const created = yield* createCorpus.handle(["query-corpus"])
+        assertIsObject(created)
+        const corpusId = (created as { corpusId: string }).corpusId
+
+        const learned = yield* learnCorpus.handle([
+          corpusId,
+          [
+            { id: "lc-1", text: "Cats purr softly in calm rooms." },
+            { id: "lc-2", text: "Dogs bark loudly near doors." }
+          ],
+          true
+        ])
+        assertIsObject(learned)
+        const learnedResult = learned as { learnedCount: number; totalDocuments: number }
+        assert.strictEqual(learnedResult.learnedCount, 2)
+        assert.strictEqual(learnedResult.totalDocuments, 2)
+
+        const queried = yield* queryCorpus.handle([corpusId, "cats purr", 2, true])
+        assertIsObject(queried)
+        const queryResult = queried as {
+          ranked: Array<{ id: string }>
+          returned: number
+        }
+        assert.strictEqual(queryResult.returned, 2)
+        assert.strictEqual(queryResult.ranked[0]?.id, "lc-1")
+
+        const stats = yield* corpusStats.handle([corpusId, true, true, 5])
+        assertIsObject(stats)
+        const statsResult = stats as {
+          totalDocuments: number
+          idfValues: Array<unknown>
+          matrixShape: { rows: number; cols: number }
+          terms: Array<string>
+        }
+        assert.strictEqual(statsResult.totalDocuments, 2)
+        assert.isTrue(statsResult.idfValues.length > 0)
+        assert.strictEqual(statsResult.matrixShape.rows, 2)
+        assert.strictEqual(statsResult.matrixShape.cols, statsResult.terms.length)
+      })
+    )
+
+    it.effect("DeleteCorpus handles positional corpusId arg", () =>
+      Effect.gen(function*() {
+        const tools = yield* exportTools
+        const createCorpus = findTool(tools, "CreateCorpus")
+        const deleteCorpus = findTool(tools, "DeleteCorpus")
+        assert.deepStrictEqual(deleteCorpus.parameterNames, ["corpusId"])
+
+        const created = yield* createCorpus.handle(["delete-corpus"])
+        assertIsObject(created)
+        const corpusId = (created as { corpusId: string }).corpusId
+
+        const deleted = yield* deleteCorpus.handle([corpusId])
+        assertIsObject(deleted)
+        const deletedResult = deleted as { deleted: boolean }
+        assert.isTrue(deletedResult.deleted)
       })
     )
 

@@ -17,6 +17,10 @@ import {
   WinkSimilarity,
   WinkSimilarityLive as WinkSimilarityLayerLive,
 } from "./WinkSimilarity.js";
+import {
+  WinkCorpusManager,
+  WinkCorpusManagerLive as WinkCorpusManagerLayerLive,
+} from "./WinkCorpusManager.js";
 
 const EngineWithRefLive = WinkEngine.Default.pipe(
   Layer.provide(WinkEngineRefLive)
@@ -39,10 +43,13 @@ export const WinkSimilarityLive = Layer.provide(
   EngineWithRefLive
 );
 
+export const WinkCorpusManagerLive = WinkCorpusManagerLayerLive;
+
 export const WinkVectorizationLive = Layer.mergeAll(
   WinkEngineLive,
   WinkVectorizerLive,
-  WinkSimilarityLive
+  WinkSimilarityLive,
+  WinkCorpusManagerLive
 );
 
 export const WinkBaseLive = WinkEngineLive;
@@ -51,7 +58,8 @@ export const WinkLayerLive = Layer.mergeAll(
   WinkEngineLive,
   WinkTokenizationLive,
   WinkVectorizerLive,
-  WinkSimilarityLive
+  WinkSimilarityLive,
+  WinkCorpusManagerLive
 );
 
 export const WinkLayerTest = WinkTokenizationLive;
@@ -66,6 +74,8 @@ export {
   WinkVectorizerLayerLive,
   WinkSimilarity,
   WinkSimilarityLayerLive,
+  WinkCorpusManager,
+  WinkCorpusManagerLayerLive,
 };
 
 export default WinkLayerLive;

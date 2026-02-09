@@ -140,3 +140,102 @@ export const AiEntitySchema = Schema.Struct({
   title: "Entity",
   description: "A named entity with type and source offsets"
 })
+
+export const AiCorpusSummarySchema = Schema.Struct({
+  corpusId: Schema.String.annotations({
+    description: "Unique corpus session identifier"
+  }),
+  documentCount: Schema.Number.annotations({
+    description: "Number of learned documents in the corpus"
+  }),
+  vocabularySize: Schema.Number.annotations({
+    description: "Number of unique normalized terms observed in the corpus"
+  }),
+  createdAtMs: Schema.Number.annotations({
+    description: "Epoch milliseconds when this corpus was created"
+  }),
+  config: Schema.Struct({
+    k1: Schema.Number.annotations({
+      description: "BM25 term-frequency saturation parameter"
+    }),
+    b: Schema.Number.annotations({
+      description: "BM25 document length normalization parameter"
+    }),
+    k: Schema.Number.annotations({
+      description: "BM25 inverse-document-frequency saturation parameter"
+    }),
+    norm: Schema.Literal("none", "l1", "l2").annotations({
+      description: "Vector normalization mode"
+    })
+  })
+}).annotations({
+  title: "CorpusSummary",
+  description: "Metadata summary for a stateful BM25 corpus session"
+})
+
+export const AiCorpusRankedDocumentSchema = Schema.Struct({
+  index: Schema.Number.annotations({
+    description: "Zero-based index within the corpus document list"
+  }),
+  id: Schema.String.annotations({
+    description: "Document identifier"
+  }),
+  score: Schema.Number.annotations({
+    description: "Relevance score (higher is more relevant)"
+  }),
+  text: Schema.optional(Schema.String).annotations({
+    description: "Original document text when includeText=true"
+  })
+}).annotations({
+  title: "CorpusRankedDocument",
+  description: "A corpus document ranked for a specific query"
+})
+
+export const AiCorpusIdfSchema = Schema.Struct({
+  term: Schema.String.annotations({
+    description: "Normalized term"
+  }),
+  idf: Schema.Number.annotations({
+    description: "Inverse document frequency value for the term"
+  })
+}).annotations({
+  title: "CorpusIdfValue",
+  description: "IDF value for a single corpus term"
+})
+
+export const AiCorpusStatsSchema = Schema.Struct({
+  corpusId: Schema.String.annotations({
+    description: "Unique corpus session identifier"
+  }),
+  totalDocuments: Schema.Number.annotations({
+    description: "Number of learned documents in the corpus"
+  }),
+  vocabularySize: Schema.Number.annotations({
+    description: "Number of unique normalized terms in the corpus"
+  }),
+  averageDocumentLength: Schema.Number.annotations({
+    description: "Average token count per document"
+  }),
+  terms: Schema.Array(Schema.String).annotations({
+    description: "Vocabulary terms used by the corpus index"
+  }),
+  idfValues: Schema.Array(AiCorpusIdfSchema).annotations({
+    description: "Optional IDF values for terms"
+  }),
+  documentTermMatrix: Schema.Array(
+    Schema.Array(Schema.Number)
+  ).annotations({
+    description: "Optional document-term matrix for debugging"
+  }),
+  matrixShape: Schema.Struct({
+    rows: Schema.Number.annotations({
+      description: "Number of rows in the matrix representation"
+    }),
+    cols: Schema.Number.annotations({
+      description: "Number of columns in the matrix representation"
+    })
+  })
+}).annotations({
+  title: "CorpusStats",
+  description: "Corpus-level BM25 statistics and optional matrix data"
+})
