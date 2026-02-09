@@ -1,0 +1,411 @@
+/**
+ * ToolExport adapter tests — verifies exported tool structure, positional arg
+ * handling, schema richness, and error handling.
+ * @since 3.0.0
+ */
+
+import { assert, describe, it } from "@effect/vitest"
+import { Effect, Exit } from "effect"
+import {
+  type ExportedTool,
+  exportTools as exportToolsEffect
+} from "../../src/NLP/Tools/ToolExport.js"
+
+const EXPECTED_TOOL_NAMES = [
+  "ChunkBySentences",
+  "DocumentStats",
+  "ExtractEntities",
+  "ExtractKeywords",
+  "RankByRelevance",
+  "Sentences",
+  "TextSimilarity",
+  "Tokenize",
+  "TransformText"
+]
+
+// Avoid repeatedly constructing Wink layers in each test case.
+const exportTools = Effect.succeed(Effect.runSync(exportToolsEffect))
+
+describe("ToolExport", () => {
+  it.effect("exports all 9 tools", () =>
+    Effect.gen(function*() {
+      const tools = yield* exportTools
+      const names = tools.map((t) => t.name).slice().sort()
+      assert.deepStrictEqual(names, EXPECTED_TOOL_NAMES)
+    })
+  )
+
+  it.effect("each tool has the full ExportedTool contract", () =>
+    Effect.gen(function*() {
+      const tools = yield* exportTools
+      for (const tool of tools) {
+        assert.isTrue(typeof tool.name === "string" && tool.name.length > 0)
+        assert.isTrue(
+          typeof tool.description === "string" && tool.description.length > 0
+        )
+        assert.isTrue(Array.isArray(tool.parameterNames))
+        assert.isTrue(tool.parameterNames.length > 0)
+        assert.isTrue(
+          typeof tool.parametersJsonSchema === "object" &&
+            tool.parametersJsonSchema !== null
+        )
+        assert.isTrue(
+          typeof tool.returnsJsonSchema === "object" &&
+            tool.returnsJsonSchema !== null
+        )
+        assert.isTrue(Array.isArray(tool.usageExamples))
+        assert.isTrue(tool.usageExamples.length > 0)
+        assert.isTrue(typeof tool.timeoutMs === "number" && tool.timeoutMs > 0)
+        assert.isTrue(typeof tool.handle === "function")
+      }
+    })
+  )
+
+  describe("positional arg handling", () => {
+    it.effect("Tokenize handles positional string arg", () =>
+      Effect.gen(function*() {
+        const tools = yield* exportTools
+        const tokenize = findTool(tools, "Tokenize")
+        assert.deepStrictEqual(tokenize.parameterNames, ["text"])
+        const result = yield* tokenize.handle(["Hello world"])
+        assertIsObject(result)
+        const r = result as { tokens: Array<unknown>; tokenCount: number }
+        assert.strictEqual(r.tokenCount, 2)
+        assert.strictEqual(r.tokens.length, 2)
+      })
+    )
+
+    it.effect("Sentences handles positional string arg", () =>
+      Effect.gen(function*() {
+        const tools = yield* exportTools
+        const sentences = findTool(tools, "Sentences")
+        const result = yield* sentences.handle([
+          "Hello world. How are you?"
+        ])
+        assertIsObject(result)
+        const r = result as {
+          sentences: Array<unknown>
+          sentenceCount: number
+        }
+        assert.strictEqual(r.sentenceCount, 2)
+      })
+    )
+
+    it.effect("DocumentStats handles positional string arg", () =>
+      Effect.gen(function*() {
+        const tools = yield* exportTools
+        const stats = findTool(tools, "DocumentStats")
+        assert.deepStrictEqual(stats.parameterNames, ["text"])
+        const result = yield* stats.handle(["Hello world. How are you?"])
+        assertIsObject(result)
+        const r = result as {
+          wordCount: number
+          sentenceCount: number
+          avgSentenceLength: number
+          charCount: number
+        }
+        assert.strictEqual(r.wordCount, 5)
+        assert.strictEqual(r.sentenceCount, 2)
+        assert.isTrue(r.avgSentenceLength > 0)
+        assert.strictEqual(typeof r.charCount, "number")
+      })
+    )
+
+    it.effect("ChunkBySentences handles text + maxChunkChars positional args", () =>
+      Effect.gen(function*() {
+        const tools = yield* exportTools
+        const chunk = findTool(tools, "ChunkBySentences")
+        assert.deepStrictEqual(chunk.parameterNames, ["text", "maxChunkChars"])
+        const result = yield* chunk.handle([
+          "One two three. Four five six. Seven eight nine.",
+          20
+        ])
+        assertIsObject(result)
+        const r = result as {
+          chunks: Array<{ text: string; sentenceCount: number }>
+          chunkCount: number
+          originalSentenceCount: number
+        }
+        assert.strictEqual(r.chunkCount, 3)
+        assert.strictEqual(r.originalSentenceCount, 3)
+        assert.strictEqual(r.chunks.length, 3)
+      })
+    )
+
+    it.effect(
+      "ExtractKeywords succeeds with omitted optional topN",
+      () =>
+        Effect.gen(function*() {
+          const tools = yield* exportTools
+          const extract = findTool(tools, "ExtractKeywords")
+          assert.deepStrictEqual(extract.parameterNames, ["text", "topN"])
+          const result = yield* extract.handle([
+            "The cat sat on the mat. The cat was happy."
+          ])
+          assertIsObject(result)
+          const r = result as { keywords: Array<unknown> }
+          assert.isTrue(r.keywords.length > 0)
+        })
+    )
+
+    it.effect("ExtractKeywords respects positional topN", () =>
+      Effect.gen(function*() {
+        const tools = yield* exportTools
+        const extract = findTool(tools, "ExtractKeywords")
+        const result = yield* extract.handle([
+          "The quick brown fox jumps over the lazy dog while the happy cat sleeps.",
+          3
+        ])
+        assertIsObject(result)
+        const r = result as { keywords: Array<unknown> }
+        assert.isTrue(r.keywords.length <= 3)
+      })
+    )
+
+    it.effect(
+      "TextSimilarity handles two positional string args",
+      () =>
+        Effect.gen(function*() {
+          const tools = yield* exportTools
+          const sim = findTool(tools, "TextSimilarity")
+          assert.deepStrictEqual(sim.parameterNames, ["text1", "text2"])
+          const result = yield* sim.handle([
+            "The cat sat on the mat",
+            "The cat sat on the mat"
+          ])
+          assertIsObject(result)
+          const r = result as { score: number; method: string }
+          assert.isTrue(r.score > 0)
+          assert.strictEqual(r.method, "vector.cosine")
+        })
+    )
+
+    it.effect("ExtractEntities handles positional string arg", () =>
+      Effect.gen(function*() {
+        const tools = yield* exportTools
+        const extractEntities = findTool(tools, "ExtractEntities")
+        assert.deepStrictEqual(extractEntities.parameterNames, ["text"])
+        const result = yield* extractEntities.handle([
+          "Email john@example.com by 2026-01-15."
+        ])
+        assertIsObject(result)
+        const r = result as {
+          entities: Array<{
+            value: string
+            type: string
+            start: number
+            end: number
+          }>
+          entityCount: number
+          entityTypes: Array<string>
+        }
+        assert.strictEqual(r.entityCount, r.entities.length)
+        for (const entity of r.entities) {
+          assert.isTrue(entity.value.length > 0)
+          assert.isTrue(entity.type.length > 0)
+          assert.isTrue(entity.end >= entity.start)
+        }
+        assert.isTrue(Array.isArray(r.entityTypes))
+      })
+    )
+
+    it.effect(
+      "TransformText handles text + operations array",
+      () =>
+        Effect.gen(function*() {
+          const tools = yield* exportTools
+          const transform = findTool(tools, "TransformText")
+          assert.deepStrictEqual(transform.parameterNames, [
+            "text",
+            "operations"
+          ])
+          const result = yield* transform.handle([
+            "HELLO WORLD",
+            ["lowercase"]
+          ])
+          assertIsObject(result)
+          const r = result as {
+            result: string
+            operationsApplied: Array<string>
+          }
+          assert.strictEqual(r.result, "hello world")
+          assert.deepStrictEqual(r.operationsApplied, ["lowercase"])
+        })
+    )
+
+    it.effect("RankByRelevance handles texts + query + optional topN", () =>
+      Effect.gen(function*() {
+        const tools = yield* exportTools
+        const rank = findTool(tools, "RankByRelevance")
+        assert.deepStrictEqual(rank.parameterNames, ["texts", "query", "topN"])
+        const result = yield* rank.handle([
+          [
+            "Cats purr and meow softly.",
+            "Felines are playful companions.",
+            "Quantum computing uses qubits."
+          ],
+          "cats and felines",
+          2
+        ])
+        assertIsObject(result)
+        const r = result as {
+          ranked: Array<{ index: number; score: number }>
+          totalTexts: number
+          returned: number
+        }
+        assert.strictEqual(r.totalTexts, 3)
+        assert.strictEqual(r.returned, 2)
+        assert.isTrue(r.ranked.length <= 2)
+        assert.isTrue(r.ranked.every((entry) => entry.index >= 0 && entry.index < 3))
+      })
+    )
+  })
+
+  describe("invalid arg handling", () => {
+    it.effect(
+      "Tokenize returns ExportedToolError for number input",
+      () =>
+        Effect.gen(function*() {
+          const tools = yield* exportTools
+          const tokenize = findTool(tools, "Tokenize")
+          const exit = yield* Effect.exit(tokenize.handle([123]))
+          assert.isTrue(Exit.isFailure(exit))
+          if (Exit.isFailure(exit)) {
+            const error = exit.cause
+            assert.isTrue(
+              String(error).includes("ExportedToolError")
+            )
+          }
+        })
+    )
+
+    it.effect(
+      "TransformText returns ExportedToolError for invalid operations",
+      () =>
+        Effect.gen(function*() {
+          const tools = yield* exportTools
+          const transform = findTool(tools, "TransformText")
+          const exit = yield* Effect.exit(
+            transform.handle(["hello", ["invalidOp"]])
+          )
+          assert.isTrue(Exit.isFailure(exit))
+        })
+    )
+  })
+
+  describe("JSON schema richness", () => {
+    it.effect(
+      "parametersJsonSchema contains description and examples",
+      () =>
+        Effect.gen(function*() {
+          const tools = yield* exportTools
+          const tokenize = findTool(tools, "Tokenize")
+          const schema = tokenize.parametersJsonSchema as Record<
+            string,
+            unknown
+          >
+          assert.strictEqual(schema["type"], "object")
+          const props = schema["properties"] as Record<
+            string,
+            Record<string, unknown>
+          >
+          assert.isTrue("text" in props)
+          assert.isTrue(typeof props["text"]["description"] === "string")
+          assert.isTrue(Array.isArray(props["text"]["examples"]))
+        })
+    )
+
+    it.effect("returnsJsonSchema has expected structure", () =>
+      Effect.gen(function*() {
+        const tools = yield* exportTools
+        const tokenize = findTool(tools, "Tokenize")
+        const schema = tokenize.returnsJsonSchema as Record<
+          string,
+          unknown
+        >
+        assert.strictEqual(schema["type"], "object")
+        const props = schema["properties"] as Record<string, unknown>
+        assert.isTrue("tokens" in props)
+        assert.isTrue("tokenCount" in props)
+      })
+    )
+
+    it.effect(
+      "ExtractKeywords parametersJsonSchema includes optional topN with default and examples",
+      () =>
+        Effect.gen(function*() {
+          const tools = yield* exportTools
+          const extract = findTool(tools, "ExtractKeywords")
+          const schema = extract.parametersJsonSchema as Record<
+            string,
+            unknown
+          >
+          const props = schema["properties"] as Record<
+            string,
+            Record<string, unknown>
+          >
+          assert.isTrue("topN" in props)
+          assert.strictEqual(props["topN"]["default"], 10)
+          assert.isTrue(Array.isArray(props["topN"]["examples"]))
+        })
+    )
+
+    it.effect(
+      "schema annotations include title on output schemas",
+      () =>
+        Effect.gen(function*() {
+          const tools = yield* exportTools
+          const tokenize = findTool(tools, "Tokenize")
+          const schema = tokenize.returnsJsonSchema as Record<
+            string,
+            unknown
+          >
+          const props = schema["properties"] as Record<
+            string,
+            Record<string, unknown>
+          >
+          const tokensSchema = props["tokens"] as Record<string, unknown>
+          const itemsSchema = tokensSchema["items"] as Record<
+            string,
+            unknown
+          >
+          assert.strictEqual(itemsSchema["title"], "Token")
+        })
+    )
+  })
+
+  describe("usage examples", () => {
+    it.effect("each tool has at least one usage example", () =>
+      Effect.gen(function*() {
+        const tools = yield* exportTools
+        for (const tool of tools) {
+          assert.isTrue(
+            tool.usageExamples.length >= 1,
+            `${tool.name} should have usage examples`
+          )
+          for (const ex of tool.usageExamples) {
+            assert.isTrue(
+              typeof ex === "string" && ex.length > 0,
+              `${tool.name} usage example should be a non-empty string`
+            )
+          }
+        }
+      })
+    )
+  })
+})
+
+function findTool(
+  tools: ReadonlyArray<ExportedTool>,
+  name: string
+): ExportedTool {
+  const tool = tools.find((t) => t.name === name)
+  if (!tool) throw new Error(`Tool "${name}" not found`)
+  return tool
+}
+
+function assertIsObject(value: unknown): asserts value is object {
+  if (typeof value !== "object" || value === null) {
+    throw new Error(`Expected object, got ${typeof value}`)
+  }
+}
