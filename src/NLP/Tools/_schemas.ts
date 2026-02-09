@@ -144,6 +144,40 @@ export const AiEntitySchema = Schema.Struct({
   description: "A named entity with type and source offsets"
 })
 
+export const AiNGramSchema = Schema.Struct({
+  value: Schema.String.annotations({
+    description: "The n-gram string value"
+  }),
+  count: Schema.Number.annotations({
+    description: "Number of times this n-gram appears"
+  })
+}).annotations({
+  title: "NGram",
+  description: "An n-gram value with frequency count"
+})
+
+export const AiPhoneticMatchSchema = Schema.Struct({
+  algorithm: Schema.Literal("soundex", "phonetize").annotations({
+    description: "The phonetic encoding algorithm used"
+  }),
+  score: Schema.Number.annotations({
+    description:
+      "Jaccard overlap score over unique phonetic codes (0 to 1)"
+  }),
+  sharedCodes: Schema.Array(Schema.String).annotations({
+    description: "Sorted unique phonetic codes found in both texts"
+  }),
+  leftCodes: Schema.Array(Schema.String).annotations({
+    description: "Sorted unique phonetic codes derived from text1"
+  }),
+  rightCodes: Schema.Array(Schema.String).annotations({
+    description: "Sorted unique phonetic codes derived from text2"
+  })
+}).annotations({
+  title: "PhoneticMatch",
+  description: "Phonetic overlap details for two texts"
+})
+
 export const AiCorpusSummarySchema = Schema.Struct({
   corpusId: Schema.String.annotations({
     description: "Unique corpus session identifier"

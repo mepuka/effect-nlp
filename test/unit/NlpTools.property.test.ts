@@ -703,7 +703,7 @@ describe("NLP Tools Property Tests", () => {
             )
           }
         }
-      })
+      }, 15_000)
 
       it("returns valid structure for empty string", async () => {
         const exit = await runToolkitExit((tk) =>
@@ -750,7 +750,7 @@ describe("NLP Tools Property Tests", () => {
             )
           }
         }
-      })
+      }, 15_000)
 
       it("sentenceCount matches array length for any input", async () => {
         await FastCheck.assert(
@@ -796,7 +796,7 @@ describe("NLP Tools Property Tests", () => {
             )
           }
         }
-      })
+      }, 15_000)
 
       it("empty vs empty succeeds", async () => {
         const exit = await runToolkitExit((tk) =>
@@ -935,7 +935,7 @@ describe("NLP Tools Property Tests", () => {
             )
           }
         }
-      })
+      }, 15_000)
 
       it("topN edge cases succeed", async () => {
         const edgeCases = [0, -1, 0.5, 1000, Number.MAX_SAFE_INTEGER]

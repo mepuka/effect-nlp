@@ -16,6 +16,8 @@ import { ExtractEntities } from "./ExtractEntities.js"
 import { ExtractKeywords } from "./ExtractKeywords.js"
 import { LearnCorpus } from "./LearnCorpus.js"
 import { LearnCustomEntities } from "./LearnCustomEntities.js"
+import { NGrams } from "./NGrams.js"
+import { PhoneticMatch } from "./PhoneticMatch.js"
 import { QueryCorpus } from "./QueryCorpus.js"
 import { RankByRelevance } from "./RankByRelevance.js"
 import { Sentences } from "./Sentences.js"
@@ -41,7 +43,13 @@ import {
   TverskySimilarityRequest,
   WinkSimilarity
 } from "../Wink/WinkSimilarity.js"
-import { TextInput, WinkUtils, WinkUtilsLive } from "../Wink/WinkUtils.js"
+import {
+  NGramConfig,
+  TextInput,
+  TokensInput,
+  WinkUtils,
+  WinkUtilsLive
+} from "../Wink/WinkUtils.js"
 import { WinkLayerLive } from "../Wink/Layer.js"
 
 export const NlpToolkit = Toolkit.make(
@@ -55,6 +63,8 @@ export const NlpToolkit = Toolkit.make(
   ExtractKeywords,
   LearnCorpus,
   LearnCustomEntities,
+  NGrams,
+  PhoneticMatch,
   QueryCorpus,
   RankByRelevance,
   Sentences,
@@ -123,6 +133,49 @@ const tokenBagOfWords = (tokens: Chunk.Chunk<Token>): Record<string, number> => 
     bag[term] = (bag[term] ?? 0) + 1
   }
   return bag
+}
+
+type NGramMode = "bag" | "edge" | "set"
+
+type PhoneticAlgorithm = "soundex" | "phonetize"
+
+const ngramResultToEntries = (
+  ngrams: Record<string, number>,
+  topN: number
+): ReadonlyArray<{
+  readonly value: string
+  readonly count: number
+}> =>
+  Object.entries(ngrams)
+    .map(([value, count]) => ({
+      value,
+      count: Number.isFinite(count) ? count : 0
+    }))
+    .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value))
+    .slice(0, topN)
+
+const uniqueSortedStrings = (
+  values: ReadonlyArray<string>
+): ReadonlyArray<string> =>
+  [...new Set(values)].sort((a, b) => a.localeCompare(b))
+
+const setJaccard = (
+  leftValues: ReadonlyArray<string>,
+  rightValues: ReadonlyArray<string>
+): number => {
+  const leftSet = new Set(leftValues)
+  const rightSet = new Set(rightValues)
+
+  if (leftSet.size === 0 && rightSet.size === 0) return 0
+
+  let intersectionSize = 0
+  for (const value of leftSet) {
+    if (rightSet.has(value)) intersectionSize++
+  }
+
+  const unionSize = new Set([...leftSet, ...rightSet]).size
+  if (unionSize === 0) return 0
+  return intersectionSize / unionSize
 }
 
 const toPositiveInteger = (value: number, fallback: number): number => {
@@ -556,6 +609,83 @@ export const NlpToolkitLive = NlpToolkit.toLayer(
             learnedEntityCount: incoming.size(),
             totalEntityCount: nextEntities.size(),
             entityNames
+          }
+        }).pipe(Effect.orDie),
+
+      NGrams: ({ mode, size, text, topN }) =>
+        Effect.gen(function*() {
+          const resolvedMode: NGramMode = mode ?? "bag"
+          const resolvedSize = toPositiveInteger(size, 1)
+          const ngramConfig = NGramConfig({ size: resolvedSize })
+          const ngramInput = TextInput({ text })
+
+          const ngramResult = yield* (resolvedMode === "bag"
+            ? utils.bagOfNGrams(ngramInput, ngramConfig)
+            : resolvedMode === "edge"
+              ? utils.edgeNGrams(ngramInput, ngramConfig)
+              : utils.setOfNGrams(ngramInput, ngramConfig))
+
+          const limit = topN === undefined
+            ? ngramResult.uniqueNGrams
+            : toPositiveInteger(topN, ngramResult.uniqueNGrams)
+          const ngrams = ngramResultToEntries(
+            ngramResult.ngrams,
+            Math.max(0, limit)
+          )
+
+          return {
+            mode: resolvedMode,
+            size: resolvedSize,
+            ngrams,
+            totalNGrams: ngramResult.totalNGrams,
+            uniqueNGrams: ngramResult.uniqueNGrams
+          }
+        }).pipe(Effect.orDie),
+
+      PhoneticMatch: ({ algorithm, minTokenLength, text1, text2 }) =>
+        Effect.gen(function*() {
+          const resolvedAlgorithm: PhoneticAlgorithm = algorithm ?? "soundex"
+          const resolvedMinTokenLength = minTokenLength ?? 2
+
+          const toCandidateTokens = (tokens: Chunk.Chunk<Token>): Chunk.Chunk<string> =>
+            Chunk.fromIterable(
+              Chunk.toReadonlyArray(tokens)
+                .filter(isWordLikeToken)
+                .map((token) => normalizedTokenText(token).trim().toLowerCase())
+                .filter((token) => token.length >= resolvedMinTokenLength)
+            )
+
+          const encodeTokens = (tokens: Chunk.Chunk<string>) => {
+            const input = TokensInput({ tokens })
+            return resolvedAlgorithm === "soundex"
+              ? utils.soundex(input)
+              : utils.phonetize(input)
+          }
+
+          const leftTokens = toCandidateTokens(yield* tokenization.tokenize(text1))
+          const rightTokens = toCandidateTokens(yield* tokenization.tokenize(text2))
+
+          const leftCodesRaw = Chunk.toReadonlyArray((yield* encodeTokens(leftTokens)).tokens)
+          const rightCodesRaw = Chunk.toReadonlyArray((yield* encodeTokens(rightTokens)).tokens)
+
+          const leftCodes = uniqueSortedStrings(
+            leftCodesRaw
+              .map((code) => code.trim())
+              .filter((code) => code.length > 0)
+          )
+          const rightCodes = uniqueSortedStrings(
+            rightCodesRaw
+              .map((code) => code.trim())
+              .filter((code) => code.length > 0)
+          )
+          const sharedCodes = leftCodes.filter((code) => rightCodes.includes(code))
+
+          return {
+            algorithm: resolvedAlgorithm,
+            score: setJaccard(leftCodes, rightCodes),
+            sharedCodes,
+            leftCodes,
+            rightCodes
           }
         }).pipe(Effect.orDie),
 

@@ -79,6 +79,12 @@ const USAGE_EXAMPLES: Record<string, ReadonlyArray<string>> = {
   LearnCustomEntities: [
     "await LearnCustomEntities('custom-entities', 'append', [{ name: 'PERSON_NAME', patterns: ['[PROPN]', '[PROPN]'] }])"
   ],
+  NGrams: [
+    'const result = await NGrams("internationalization", 3, "bag", 10)'
+  ],
+  PhoneticMatch: [
+    'const result = await PhoneticMatch("Stephen Hawking", "Steven Hocking", "soundex", 2)'
+  ],
   QueryCorpus: [
     'const { ranked } = await QueryCorpus(corpusId, "refund policy", 5, true)'
   ],

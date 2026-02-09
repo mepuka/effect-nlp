@@ -22,6 +22,8 @@ const EXPECTED_TOOL_NAMES = [
   "ExtractKeywords",
   "LearnCorpus",
   "LearnCustomEntities",
+  "NGrams",
+  "PhoneticMatch",
   "QueryCorpus",
   "RankByRelevance",
   "Sentences",
@@ -35,7 +37,7 @@ const EXPECTED_TOOL_NAMES = [
 const exportTools = Effect.succeed(Effect.runSync(exportToolsEffect))
 
 describe("ToolExport", () => {
-  it.effect("exports all 17 tools", () =>
+  it.effect("exports all 19 tools", () =>
     Effect.gen(function*() {
       const tools = yield* exportTools
       const names = tools.map((t) => t.name).slice().sort()
@@ -414,6 +416,81 @@ describe("ToolExport", () => {
           const f = forward as { score: number }
           const r = reverse as { score: number }
           assert.isTrue(r.score > f.score)
+        })
+    )
+
+    it.effect("NGrams handles positional args and deterministic ordering", () =>
+      Effect.gen(function*() {
+        const tools = yield* exportTools
+        const ngrams = findTool(tools, "NGrams")
+        assert.deepStrictEqual(ngrams.parameterNames, [
+          "text",
+          "size",
+          "mode",
+          "topN"
+        ])
+        const result = yield* ngrams.handle(["banana", 2, "bag", 2])
+        assertIsObject(result)
+        const r = result as {
+          mode: string
+          size: number
+          ngrams: Array<{ value: string; count: number }>
+          totalNGrams: number
+          uniqueNGrams: number
+        }
+        assert.strictEqual(r.mode, "bag")
+        assert.strictEqual(r.size, 2)
+        assert.strictEqual(r.totalNGrams, 5)
+        assert.strictEqual(r.uniqueNGrams, 3)
+        assert.deepStrictEqual(r.ngrams, [
+          { value: "an", count: 2 },
+          { value: "na", count: 2 }
+        ])
+      })
+    )
+
+    it.effect(
+      "PhoneticMatch handles positional args and returns phonetic overlap",
+      () =>
+        Effect.gen(function*() {
+          const tools = yield* exportTools
+          const phonetic = findTool(tools, "PhoneticMatch")
+          assert.deepStrictEqual(phonetic.parameterNames, [
+            "text1",
+            "text2",
+            "algorithm",
+            "minTokenLength"
+          ])
+          const result = yield* phonetic.handle([
+            "Stephen Hawking",
+            "Steven Hocking",
+            "soundex",
+            2
+          ])
+          assertIsObject(result)
+          const r = result as {
+            algorithm: string
+            score: number
+            sharedCodes: Array<string>
+            leftCodes: Array<string>
+            rightCodes: Array<string>
+          }
+          assert.strictEqual(r.algorithm, "soundex")
+          assert.isTrue(r.score > 0)
+          assert.isTrue(r.score <= 1)
+          assert.isTrue(r.sharedCodes.length > 0)
+          assert.deepStrictEqual(
+            [...r.sharedCodes].sort((a, b) => a.localeCompare(b)),
+            r.sharedCodes
+          )
+          assert.deepStrictEqual(
+            [...r.leftCodes].sort((a, b) => a.localeCompare(b)),
+            r.leftCodes
+          )
+          assert.deepStrictEqual(
+            [...r.rightCodes].sort((a, b) => a.localeCompare(b)),
+            r.rightCodes
+          )
         })
     )
 

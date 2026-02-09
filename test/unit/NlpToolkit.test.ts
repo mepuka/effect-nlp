@@ -15,7 +15,7 @@ const toolkitEffect = Effect.succeed(
 )
 
 describe("NlpToolkit", () => {
-  it("exports all seventeen tools", () => {
+  it("exports all nineteen tools", () => {
     const toolNames = Object.keys(NlpToolkit.tools)
     assert.deepStrictEqual(toolNames.sort(), [
       "BowCosineSimilarity",
@@ -28,6 +28,8 @@ describe("NlpToolkit", () => {
       "ExtractKeywords",
       "LearnCorpus",
       "LearnCustomEntities",
+      "NGrams",
+      "PhoneticMatch",
       "QueryCorpus",
       "RankByRelevance",
       "Sentences",
@@ -285,6 +287,48 @@ describe("NlpToolkit", () => {
         assert.isFalse(forward.isFailure)
         assert.isFalse(reverse.isFailure)
         assert.isTrue(reverse.result.score > forward.result.score)
+      })
+    )
+
+    it.effect("NGrams handler returns deterministic frequency ordering", () =>
+      Effect.gen(function*() {
+        const toolkit = yield* toolkitEffect
+        const result = yield* toolkit.handle("NGrams", {
+          text: "banana",
+          size: 2,
+          mode: "bag",
+          topN: 2
+        })
+        assert.isFalse(result.isFailure)
+        assert.strictEqual(result.result.mode, "bag")
+        assert.strictEqual(result.result.size, 2)
+        assert.strictEqual(result.result.totalNGrams, 5)
+        assert.strictEqual(result.result.uniqueNGrams, 3)
+        assert.deepStrictEqual(result.result.ngrams, [
+          { value: "an", count: 2 },
+          { value: "na", count: 2 }
+        ])
+      })
+    )
+
+    it.effect("PhoneticMatch handler compares names using soundex", () =>
+      Effect.gen(function*() {
+        const toolkit = yield* toolkitEffect
+        const result = yield* toolkit.handle("PhoneticMatch", {
+          text1: "Stephen Hawking",
+          text2: "Steven Hocking",
+          algorithm: "soundex",
+          minTokenLength: 2
+        })
+        assert.isFalse(result.isFailure)
+        assert.strictEqual(result.result.algorithm, "soundex")
+        assert.isTrue(result.result.score > 0)
+        assert.isTrue(result.result.score <= 1)
+        assert.isTrue(result.result.sharedCodes.length > 0)
+        assert.deepStrictEqual(
+          [...result.result.sharedCodes].sort((a, b) => a.localeCompare(b)),
+          result.result.sharedCodes
+        )
       })
     )
 

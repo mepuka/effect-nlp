@@ -12,6 +12,8 @@ export {
   AiDocumentStatsSchema,
   AiEntitySchema,
   AiKeywordSchema,
+  AiNGramSchema,
+  AiPhoneticMatchSchema,
   AiRankedTextSchema,
   AiSentenceChunkSchema,
   AiSentenceSchema,
@@ -20,6 +22,8 @@ export {
 export { Tokenize } from "./Tokenize.js"
 export { Sentences } from "./Sentences.js"
 export { BowCosineSimilarity } from "./BowCosineSimilarity.js"
+export { NGrams } from "./NGrams.js"
+export { PhoneticMatch } from "./PhoneticMatch.js"
 export { TextSimilarity } from "./TextSimilarity.js"
 export { TverskySimilarity } from "./TverskySimilarity.js"
 export { TransformText } from "./TransformText.js"
