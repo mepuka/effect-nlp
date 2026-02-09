@@ -186,7 +186,7 @@ export class WinkEngineCustomEntities
       case 0:
         return this;
       case 1:
-        return args[0](this);
+        return args[0]!(this);
       default:
         return args.reduce((acc, fn) => fn(acc), this);
     }
@@ -485,7 +485,7 @@ export const CustomEntityExampleToWinkFormat = Schema.transform(
       // Split the pattern string back into bracket components
       const patterns =
         winkFormat.patterns.length > 0
-          ? winkFormat.patterns[0].split(" ").filter((s) => s.length > 0)
+          ? winkFormat.patterns[0]!.split(" ").filter((s) => s.length > 0)
           : [];
       return new CustomEntityExample({
         name: winkFormat.name,

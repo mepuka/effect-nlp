@@ -28,6 +28,24 @@ const getSpan = (value: unknown): readonly [number, number] | undefined => {
   return undefined;
 };
 
+const safeOut = <T>(winkToken: ItemToken, accessor: any): T | undefined => {
+  try {
+    return winkToken.out(accessor) as T;
+  } catch {
+    return undefined;
+  }
+};
+
+const optString = (value: unknown): Option.Option<string | undefined> =>
+  value !== undefined && value !== null
+    ? Option.some(String(value))
+    : Option.none();
+
+const optValue = <T>(value: T | undefined | null): Option.Option<T | undefined> =>
+  value !== undefined && value !== null
+    ? Option.some(value)
+    : Option.none();
+
 const makeToken = (
   winkToken: ItemToken,
   index: number,
@@ -44,19 +62,19 @@ const makeToken = (
     index: TokenIndex.make(index),
     start: CharPosition.make(start),
     end: CharPosition.make(end),
-    pos: Option.none(),
-    lemma: Option.none(),
-    stem: Option.none(),
-    normal: Option.none(),
-    shape: Option.none(),
-    prefix: Option.none(),
-    suffix: Option.none(),
-    case: Option.none(),
-    uniqueId: Option.none(),
-    abbrevFlag: Option.none(),
-    contractionFlag: Option.none(),
-    stopWordFlag: Option.none(),
-    negationFlag: Option.none(),
+    pos: optString(safeOut(winkToken, its.pos)),
+    lemma: optString(safeOut(winkToken, its.lemma)),
+    stem: optString(safeOut(winkToken, its.stem)),
+    normal: optString(safeOut(winkToken, its.normal)),
+    shape: optString(safeOut(winkToken, its.shape)),
+    prefix: optString(safeOut(winkToken, its.prefix)),
+    suffix: optString(safeOut(winkToken, its.suffix)),
+    case: optString(safeOut(winkToken, its.case)),
+    uniqueId: optValue(safeOut<number>(winkToken, its.uniqueId)),
+    abbrevFlag: optValue(safeOut<boolean>(winkToken, its.abbrevFlag)),
+    contractionFlag: optValue(safeOut<boolean>(winkToken, its.contractionFlag)),
+    stopWordFlag: optValue(safeOut<boolean>(winkToken, its.stopWordFlag)),
+    negationFlag: optValue(safeOut<boolean>(winkToken, its.negationFlag)),
     precedingSpaces:
       preceding.length > 0 ? Option.some(preceding) : Option.none(),
     tags: [],
@@ -93,10 +111,9 @@ const collectSentences = (
     const span = getSpan(winkSentence.out(its.span));
     const [startTokenIndex, endTokenIndex] = span ?? [0, tokenArray.length];
 
-    const sentenceTokens = tokenArray.filter(
-      (_, tokenIndex) =>
-        tokenIndex >= startTokenIndex && tokenIndex < endTokenIndex
-    );
+    const safeStart = Math.max(0, Math.min(startTokenIndex, tokenArray.length));
+    const safeEnd = Math.max(safeStart, Math.min(endTokenIndex, tokenArray.length));
+    const sentenceTokens = tokenArray.slice(safeStart, safeEnd);
 
     const sentenceChunk = Chunk.fromIterable(sentenceTokens);
     const firstToken = sentenceTokens[0];
