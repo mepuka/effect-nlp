@@ -12,6 +12,7 @@ import {
 } from "../../src/NLP/Tools/ToolExport.js"
 
 const EXPECTED_TOOL_NAMES = [
+  "BowCosineSimilarity",
   "ChunkBySentences",
   "CorpusStats",
   "CreateCorpus",
@@ -26,14 +27,15 @@ const EXPECTED_TOOL_NAMES = [
   "Sentences",
   "TextSimilarity",
   "Tokenize",
-  "TransformText"
+  "TransformText",
+  "TverskySimilarity"
 ]
 
 // Avoid repeatedly constructing Wink layers in each test case.
 const exportTools = Effect.succeed(Effect.runSync(exportToolsEffect))
 
 describe("ToolExport", () => {
-  it.effect("exports all 15 tools", () =>
+  it.effect("exports all 17 tools", () =>
     Effect.gen(function*() {
       const tools = yield* exportTools
       const names = tools.map((t) => t.name).slice().sort()
@@ -343,6 +345,75 @@ describe("ToolExport", () => {
           const r = result as { score: number; method: string }
           assert.isTrue(r.score > 0)
           assert.strictEqual(r.method, "vector.cosine")
+        })
+    )
+
+    it.effect(
+      "BowCosineSimilarity handles two positional string args",
+      () =>
+        Effect.gen(function*() {
+          const tools = yield* exportTools
+          const sim = findTool(tools, "BowCosineSimilarity")
+          assert.deepStrictEqual(sim.parameterNames, ["text1", "text2"])
+          const result = yield* sim.handle([
+            "The cat sat on the mat",
+            "The cat sat on the mat"
+          ])
+          assertIsObject(result)
+          const r = result as { score: number; method: string }
+          assert.isTrue(r.score > 0)
+          assert.isTrue(r.score <= 1)
+          assert.strictEqual(r.method, "bow.cosine")
+        })
+    )
+
+    it.effect(
+      "TverskySimilarity handles positional args with defaults and asymmetry controls",
+      () =>
+        Effect.gen(function*() {
+          const tools = yield* exportTools
+          const sim = findTool(tools, "TverskySimilarity")
+          assert.deepStrictEqual(sim.parameterNames, [
+            "text1",
+            "text2",
+            "alpha",
+            "beta"
+          ])
+
+          const defaultResult = yield* sim.handle([
+            "alpha beta gamma",
+            "alpha beta"
+          ])
+          assertIsObject(defaultResult)
+          const d = defaultResult as {
+            score: number
+            method: string
+            alpha: number
+            beta: number
+          }
+          assert.strictEqual(d.method, "set.tversky")
+          assert.strictEqual(d.alpha, 0.5)
+          assert.strictEqual(d.beta, 0.5)
+          assert.isTrue(d.score >= 0)
+          assert.isTrue(d.score <= 1)
+
+          const forward = yield* sim.handle([
+            "alpha beta gamma",
+            "alpha beta",
+            0.8,
+            0.2
+          ])
+          const reverse = yield* sim.handle([
+            "alpha beta",
+            "alpha beta gamma",
+            0.8,
+            0.2
+          ])
+          assertIsObject(forward)
+          assertIsObject(reverse)
+          const f = forward as { score: number }
+          const r = reverse as { score: number }
+          assert.isTrue(r.score > f.score)
         })
     )
 

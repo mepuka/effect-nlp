@@ -27,6 +27,9 @@ export interface ExportedTool {
 }
 
 const USAGE_EXAMPLES: Record<string, ReadonlyArray<string>> = {
+  BowCosineSimilarity: [
+    'const { score } = await BowCosineSimilarity("cats are great", "cats are wonderful")'
+  ],
   ChunkBySentences: [
     'const { chunks } = await ChunkBySentences(text, 1500)',
     "const { chunkCount } = await ChunkBySentences(longDocument, 1200)"
@@ -59,6 +62,9 @@ const USAGE_EXAMPLES: Record<string, ReadonlyArray<string>> = {
   ],
   TextSimilarity: [
     'const { score } = await TextSimilarity("cats are great", "felines are wonderful")'
+  ],
+  TverskySimilarity: [
+    'const { score } = await TverskySimilarity("alpha beta gamma", "alpha beta", 0.8, 0.2)'
   ],
   TransformText: [
     'const { result } = await TransformText("<b>Hello</b> WORLD", ["removeHtml", "lowercase", "trim"])'

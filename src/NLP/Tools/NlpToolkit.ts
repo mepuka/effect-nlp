@@ -6,6 +6,7 @@
 
 import { Chunk, Data, Effect, HashSet, Layer, Option, Schema } from "effect"
 import { Toolkit } from "@effect/ai"
+import { BowCosineSimilarity } from "./BowCosineSimilarity.js"
 import { ChunkBySentences } from "./ChunkBySentences.js"
 import { CorpusStats } from "./CorpusStats.js"
 import { CreateCorpus } from "./CreateCorpus.js"
@@ -20,6 +21,7 @@ import { RankByRelevance } from "./RankByRelevance.js"
 import { Sentences } from "./Sentences.js"
 import { Tokenize } from "./Tokenize.js"
 import { TextSimilarity } from "./TextSimilarity.js"
+import { TverskySimilarity } from "./TverskySimilarity.js"
 import { TransformText } from "./TransformText.js"
 import { Tokenization } from "../Core/Tokenization.js"
 import type { Token } from "../Core/Token.js"
@@ -30,12 +32,20 @@ import {
   EntityGroupName,
   WinkEngineCustomEntities
 } from "../Wink/WinkPattern.js"
-import { WinkVectorizer, type TermFrequency } from "../Wink/WinkVectorizer.js"
-import { CosineSimilarityRequest, WinkSimilarity } from "../Wink/WinkSimilarity.js"
+import { BagOfWords, WinkVectorizer, type TermFrequency } from "../Wink/WinkVectorizer.js"
+import {
+  BOWCosineSimilarityRequest,
+  CosineSimilarityRequest,
+  DocumentTermSet,
+  TverskyParams,
+  TverskySimilarityRequest,
+  WinkSimilarity
+} from "../Wink/WinkSimilarity.js"
 import { TextInput, WinkUtils, WinkUtilsLive } from "../Wink/WinkUtils.js"
 import { WinkLayerLive } from "../Wink/Layer.js"
 
 export const NlpToolkit = Toolkit.make(
+  BowCosineSimilarity,
   ChunkBySentences,
   CorpusStats,
   CreateCorpus,
@@ -49,6 +59,7 @@ export const NlpToolkit = Toolkit.make(
   RankByRelevance,
   Sentences,
   TextSimilarity,
+  TverskySimilarity,
   Tokenize,
   TransformText
 )
@@ -84,6 +95,35 @@ const isPunctuationToken = (token: Token): boolean =>
 
 const isWordLikeToken = (token: Token): boolean =>
   !isPunctuationToken(token) && /[\p{L}\p{N}]/u.test(token.text)
+
+const normalizedTokenText = (token: Token): string =>
+  Option.match(token.normal, {
+    onNone: () => token.text,
+    onSome: (normal) => normal ?? token.text
+  })
+
+const uniqueNormalizedTerms = (
+  tokens: Chunk.Chunk<Token>
+): Chunk.Chunk<string> =>
+  Chunk.fromIterable(
+    [
+      ...new Set(
+        Chunk.toReadonlyArray(tokens)
+          .map((token) => normalizedTokenText(token).trim())
+          .filter((term) => term.length > 0)
+      )
+    ]
+  )
+
+const tokenBagOfWords = (tokens: Chunk.Chunk<Token>): Record<string, number> => {
+  const bag: Record<string, number> = {}
+  for (const token of Chunk.toReadonlyArray(tokens)) {
+    const term = normalizedTokenText(token).trim()
+    if (term.length === 0) continue
+    bag[term] = (bag[term] ?? 0) + 1
+  }
+  return bag
+}
 
 const toPositiveInteger = (value: number, fallback: number): number => {
   if (!Number.isFinite(value)) return fallback
@@ -219,6 +259,27 @@ export const NlpToolkitLive = NlpToolkit.toLayer(
     const utils = yield* WinkUtils
 
     return {
+      BowCosineSimilarity: ({ text1, text2 }) =>
+        Effect.gen(function*() {
+          const doc1 = yield* tokenization.document(text1, "bow-text1")
+          const doc2 = yield* tokenization.document(text2, "bow-text2")
+          const bow1 = BagOfWords({
+            documentId: doc1.id,
+            bow: tokenBagOfWords(doc1.tokens)
+          })
+          const bow2 = BagOfWords({
+            documentId: doc2.id,
+            bow: tokenBagOfWords(doc2.tokens)
+          })
+          const result = yield* sim.bowCosine(
+            BOWCosineSimilarityRequest({ bow1, bow2 })
+          )
+          return {
+            score: Number.isFinite(result.score) ? result.score : 0,
+            method: "bow.cosine" as const
+          }
+        }).pipe(Effect.orDie),
+
       ChunkBySentences: ({ maxChunkChars, text }) =>
         Effect.gen(function*() {
           const doc = yield* tokenization.document(text, "chunks-doc")
@@ -599,6 +660,38 @@ export const NlpToolkitLive = NlpToolkit.toLayer(
             return { score: result.score, method: result.method }
           })
         ).pipe(Effect.orDie),
+
+      TverskySimilarity: ({ alpha, beta, text1, text2 }) =>
+        Effect.gen(function*() {
+          const resolvedAlpha = alpha ?? 0.5
+          const resolvedBeta = beta ?? 0.5
+          const doc1 = yield* tokenization.document(text1, "tversky-text1")
+          const doc2 = yield* tokenization.document(text2, "tversky-text2")
+          const set1 = DocumentTermSet({
+            documentId: doc1.id,
+            terms: uniqueNormalizedTerms(doc1.tokens)
+          })
+          const set2 = DocumentTermSet({
+            documentId: doc2.id,
+            terms: uniqueNormalizedTerms(doc2.tokens)
+          })
+          const result = yield* sim.setTversky(
+            TverskySimilarityRequest({
+              set1,
+              set2,
+              params: TverskyParams({
+                alpha: resolvedAlpha,
+                beta: resolvedBeta
+              })
+            })
+          )
+          return {
+            score: Number.isFinite(result.score) ? result.score : 0,
+            method: "set.tversky" as const,
+            alpha: resolvedAlpha,
+            beta: resolvedBeta
+          }
+        }).pipe(Effect.orDie),
 
       Tokenize: ({ text }) =>
         Effect.gen(function*() {
