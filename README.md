@@ -1,85 +1,46 @@
-# Effect Package Template
+# effect-nlp
 
-This template provides a solid foundation for building scalable and maintainable TypeScript package with Effect. 
+Effect-based NLP toolkit combining [wink-nlp](https://winkjs.org/wink-nlp/) with the [Effect](https://effect.website) TypeScript library.
 
-## Running Code
+## Features
 
-This template leverages [tsx](https://tsx.is) to allow execution of TypeScript files via NodeJS as if they were written in plain JavaScript.
+- Tokenization with offset tracking
+- Pattern matching and pattern builders
+- Sentence and document modeling
+- Wink NLP engine integration (lemmatization, similarity, vectorization)
+- Effect Layer-based dependency injection
 
-To execute a file with `tsx`:
-
-```sh
-pnpm tsx ./path/to/the/file.ts
-```
-
-## Operations
-
-**Building**
-
-To build the package:
+## Getting Started
 
 ```sh
-pnpm build
+bun install
 ```
 
-**Testing**
+## Scripts
 
-To test the package:
+| Command              | Description                        |
+| -------------------- | ---------------------------------- |
+| `bun run start`      | Run the application                |
+| `bun run dev`        | Start with watch mode (hot reload) |
+| `bun run typecheck`  | TypeScript type checking           |
+| `bun run lint`       | Run ESLint                         |
+| `bun run lint:fix`   | ESLint with automatic fixes        |
+| `bun run test`       | Run all tests                      |
+| `bun run test:unit`  | Run unit tests only                |
 
-```sh
-pnpm test
+## Project Structure
+
+```
+src/
+  Program.ts              Entry point
+  NLP/
+    Core/                 Token, Sentence, Document, Pattern types
+    Wink/                 Wink NLP engine integration
+    Layers/               Effect Layer composition
+test/
+  unit/                   Unit tests
 ```
 
-## Typed Annotation Helpers
+## License
 
-The `src/Extraction/Annotations.ts` module provides typed helpers for attaching
-and retrieving schema annotations. Use helpers such as:
-
-```ts
-import { Annotations } from "effect-nlp/Extraction/Annotations";
-import { Schema, pipe } from "effect";
-
-const ArticleSchema = pipe(
-  Schema.Struct({
-    title: pipe(
-      Schema.String,
-      Annotations.withCore({
-        title: "Title",
-        description: "Headline used when presenting the article",
-      })
-    ),
-  }),
-  Annotations.withMetadata({
-    semantic: { semanticType: "article" },
-    role: { role: "aggregate_root" },
-  })
-);
-
-const metadata = Annotations.getContext(ArticleSchema.ast.annotations);
-```
-
-These helpers guarantee consistent annotation shapes that can be consumed by
-prompt builders and extraction pipelines.
-
-## Schema AST Traversal
-
-Build immutable, typed AST trees for schema inspection:
-
-```ts
-import { Option } from "effect";
-import { buildSchemaASTTree } from "effect-nlp/Extraction/ASTTraverse";
-
-const tree = await buildSchemaASTTree(articleEntity);
-const titles = tree.root.children.map((child) =>
-  Option.getOrElse(
-    Option.flatMap(child.context.annotations.core, (core) =>
-      Option.fromNullable(core.title)
-    ),
-    () => ""
-  )
-);
-```
-
-Nodes expose typed annotation context (core/role/semantic/provenance) alongside
-entity identifiers, enabling deterministic prompt construction and graph
-operations.
+MIT

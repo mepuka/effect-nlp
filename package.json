@@ -2,6 +2,9 @@
   "name": "effect-nlp",
   "version": "0.1.0",
   "type": "module",
+  "exports": {
+    ".": "./src/NLP/index.ts"
+  },
   "license": "MIT",
   "description": "Effect-based NLP service combining wink-nlp and compromise.js",
   "repository": {
@@ -15,8 +18,8 @@
     "check:deps": "node -e \"const pkg=require('./package.json');const deps={...pkg.dependencies,...pkg.devDependencies};const latest=Object.entries(deps).filter(([,version])=>version==='latest');if(latest.length>0){console.error('Found non-reproducible latest dependencies:',latest.map(([name])=>name).join(', '));process.exit(1)}\"",
     "docgen": "echo 'docgen is not configured in effect-nlp yet'",
     "typecheck": "tsc -b tsconfig.json",
-    "lint": "eslint \"**/{src,test,examples}/**/*.{ts,mjs}\"",
-    "lint:fix": "eslint \"**/{src,test,examples}/**/*.{ts,mjs}\" --fix",
+    "lint": "eslint \"**/{src,test}/**/*.{ts,mjs}\"",
+    "lint:fix": "eslint \"**/{src,test}/**/*.{ts,mjs}\" --fix",
     "test": "vitest run",
     "test:unit": "vitest run test/unit",
     "test:watch": "vitest --watch",
