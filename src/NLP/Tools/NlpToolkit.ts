@@ -4,7 +4,7 @@
  * @since 3.0.0
  */
 
-import { Chunk, Effect, Layer, Option } from "effect"
+import { Chunk, Data, Effect, HashSet, Layer, Option, Schema } from "effect"
 import { Toolkit } from "@effect/ai"
 import { ChunkBySentences } from "./ChunkBySentences.js"
 import { CorpusStats } from "./CorpusStats.js"
@@ -14,6 +14,7 @@ import { DocumentStats } from "./DocumentStats.js"
 import { ExtractEntities } from "./ExtractEntities.js"
 import { ExtractKeywords } from "./ExtractKeywords.js"
 import { LearnCorpus } from "./LearnCorpus.js"
+import { LearnCustomEntities } from "./LearnCustomEntities.js"
 import { QueryCorpus } from "./QueryCorpus.js"
 import { RankByRelevance } from "./RankByRelevance.js"
 import { Sentences } from "./Sentences.js"
@@ -24,6 +25,11 @@ import { Tokenization } from "../Core/Tokenization.js"
 import type { Token } from "../Core/Token.js"
 import { WinkCorpusManager } from "../Wink/WinkCorpusManager.js"
 import { WinkEngine } from "../Wink/WinkEngine.js"
+import {
+  CustomEntityExample,
+  EntityGroupName,
+  WinkEngineCustomEntities
+} from "../Wink/WinkPattern.js"
 import { WinkVectorizer, type TermFrequency } from "../Wink/WinkVectorizer.js"
 import { CosineSimilarityRequest, WinkSimilarity } from "../Wink/WinkSimilarity.js"
 import { TextInput, WinkUtils, WinkUtilsLive } from "../Wink/WinkUtils.js"
@@ -38,6 +44,7 @@ export const NlpToolkit = Toolkit.make(
   ExtractEntities,
   ExtractKeywords,
   LearnCorpus,
+  LearnCustomEntities,
   QueryCorpus,
   RankByRelevance,
   Sentences,
@@ -84,10 +91,84 @@ const toPositiveInteger = (value: number, fallback: number): number => {
   return rounded >= 1 ? rounded : fallback
 }
 
+const BracketPatternElement = Schema.String.pipe(
+  Schema.minLength(3),
+  Schema.pattern(/^\[[^\]]+\]$/)
+)
+
 interface SentenceSpan {
   readonly index: number
   readonly text: string
 }
+
+interface RawEntityDetail {
+  readonly value?: unknown
+  readonly type?: unknown
+}
+
+interface AiEntity {
+  readonly value: string
+  readonly type: string
+  readonly start: number
+  readonly end: number
+  readonly startTokenIndex: number
+  readonly endTokenIndex: number
+  readonly source: "builtin" | "custom"
+}
+
+const mapWinkEntityOutput = (
+  details: ReadonlyArray<RawEntityDetail>,
+  spans: ReadonlyArray<ReadonlyArray<number>>,
+  tokenArray: ReadonlyArray<Token>,
+  source: "builtin" | "custom"
+): ReadonlyArray<AiEntity> =>
+  details.map((detail, index) => {
+    const rawSpan = spans[index]
+    const value =
+      typeof detail.value === "string"
+        ? detail.value
+        : String(detail.value ?? "")
+    const type =
+      typeof detail.type === "string"
+        ? detail.type
+        : String(detail.type ?? "")
+
+    let startTokenIndex = 0
+    let endTokenIndex = 0
+
+    if (
+      tokenArray.length > 0 &&
+      Array.isArray(rawSpan) &&
+      rawSpan.length >= 2 &&
+      typeof rawSpan[0] === "number" &&
+      typeof rawSpan[1] === "number"
+    ) {
+      const maxTokenIndex = tokenArray.length - 1
+      const a = Math.floor(rawSpan[0])
+      const b = Math.floor(rawSpan[1])
+      startTokenIndex = Math.max(0, Math.min(maxTokenIndex, Math.min(a, b)))
+      endTokenIndex = Math.max(
+        startTokenIndex,
+        Math.min(maxTokenIndex, Math.max(a, b))
+      )
+    }
+
+    const startToken = tokenArray[startTokenIndex]
+    const endToken = tokenArray[endTokenIndex]
+    const start = startToken !== undefined ? (startToken.start as number) : 0
+    const end =
+      endToken !== undefined ? (endToken.end as number) : start + value.length
+
+    return {
+      value,
+      type,
+      start,
+      end: Math.max(start, end),
+      startTokenIndex,
+      endTokenIndex,
+      source
+    }
+  })
 
 type OperationName =
   | "lowercase"
@@ -271,80 +352,63 @@ export const NlpToolkitLive = NlpToolkit.toLayer(
           }
         }).pipe(Effect.orDie),
 
-      ExtractEntities: ({ text }) =>
+      ExtractEntities: ({ includeCustom, text }) =>
         Effect.gen(function*() {
           const winkDoc = yield* engine.getWinkDoc(text)
           const its = yield* engine.its
           const doc = yield* tokenization.document(text, "entities-doc")
           const tokenArray = Chunk.toReadonlyArray(doc.tokens)
 
-          const details = winkDoc.entities().out(its.detail) as Array<{
-            readonly value?: unknown
-            readonly type?: unknown
-          }>
-          const spans = winkDoc.entities().out(its.span) as unknown as ReadonlyArray<
+          const builtinDetails = winkDoc.entities().out(its.detail) as ReadonlyArray<
+            RawEntityDetail
+          >
+          const builtinSpans = winkDoc.entities().out(its.span) as ReadonlyArray<
             ReadonlyArray<number>
           >
 
-          const entities = details.map((detail, index) => {
-            const rawSpan = spans[index]
-            const value =
-              typeof detail.value === "string"
-                ? detail.value
-                : String(detail.value ?? "")
-            const type =
-              typeof detail.type === "string"
-                ? detail.type
-                : String(detail.type ?? "")
+          const entities = mapWinkEntityOutput(
+            builtinDetails,
+            builtinSpans,
+            tokenArray,
+            "builtin"
+          )
+          const entityTypes = [...new Set(entities.map((entity) => entity.type))].sort(
+            (a, b) => a.localeCompare(b)
+          )
 
-            let startTokenIndex = 0
-            let endTokenIndex = 0
+          const shouldIncludeCustom = includeCustom ?? true
 
-            if (
-              tokenArray.length > 0 &&
-              Array.isArray(rawSpan) &&
-              rawSpan.length >= 2 &&
-              typeof rawSpan[0] === "number" &&
-              typeof rawSpan[1] === "number"
-            ) {
-              const maxTokenIndex = tokenArray.length - 1
-              const a = Math.floor(rawSpan[0])
-              const b = Math.floor(rawSpan[1])
-              startTokenIndex = Math.max(0, Math.min(maxTokenIndex, Math.min(a, b)))
-              endTokenIndex = Math.max(
-                startTokenIndex,
-                Math.min(maxTokenIndex, Math.max(a, b))
+          const customEntities = shouldIncludeCustom
+            ? mapWinkEntityOutput(
+                winkDoc.customEntities().out(its.detail) as ReadonlyArray<RawEntityDetail>,
+                winkDoc.customEntities().out(its.span) as ReadonlyArray<
+                  ReadonlyArray<number>
+                >,
+                tokenArray,
+                "custom"
               )
-            }
+            : []
 
-            const startToken = tokenArray[startTokenIndex]
-            const endToken = tokenArray[endTokenIndex]
-            const start =
-              startToken !== undefined
-                ? (startToken.start as number)
-                : 0
-            const end =
-              endToken !== undefined
-                ? (endToken.end as number)
-                : start + value.length
+          const customEntityTypes = [
+            ...new Set(customEntities.map((entity) => entity.type))
+          ].sort((a, b) => a.localeCompare(b))
 
-            return {
-              value,
-              type,
-              start,
-              end: Math.max(start, end),
-              startTokenIndex,
-              endTokenIndex
-            }
-          })
-
-          const entityTypes = [...new Set(entities.map((entity) => entity.type))]
-            .sort((a, b) => a.localeCompare(b))
+          const allEntities = [...entities, ...customEntities].sort(
+            (a, b) =>
+              a.start - b.start ||
+              a.end - b.end ||
+              a.startTokenIndex - b.startTokenIndex
+          )
 
           return {
             entities,
             entityCount: entities.length,
-            entityTypes
+            entityTypes,
+            customEntities,
+            customEntityCount: customEntities.length,
+            customEntityTypes,
+            allEntities,
+            allEntityCount: allEntities.length
           }
         }).pipe(Effect.orDie),
 
@@ -380,6 +444,58 @@ export const NlpToolkitLive = NlpToolkit.toLayer(
             documents: Chunk.fromIterable(docs),
             ...(dedupeById === undefined ? {} : { dedupeById })
           })
+        }).pipe(Effect.orDie),
+
+      LearnCustomEntities: ({ entities, groupName, mode }) =>
+        Effect.gen(function*() {
+          yield* Effect.forEach(
+            entities,
+            (entity) =>
+              Schema.decodeUnknown(Schema.NonEmptyArray(BracketPatternElement))(entity.patterns),
+            { discard: true }
+          )
+
+          const requestedMode = mode ?? "append"
+          const incoming = new WinkEngineCustomEntities({
+            name: EntityGroupName.make(groupName ?? "custom-entities"),
+            patterns: HashSet.fromIterable(
+              entities.map(
+                (entity) =>
+                  new CustomEntityExample({
+                    name: entity.name,
+                    patterns: Data.array(entity.patterns),
+                    ...(entity.mark === undefined ? {} : { mark: entity.mark })
+                  })
+              )
+            )
+          })
+
+          const nextEntities =
+            requestedMode === "append"
+              ? yield* engine.getCurrentCustomEntities().pipe(
+                  Effect.map((current) =>
+                    Option.match(current, {
+                      onNone: () => incoming,
+                      onSome: (existing) => existing.merge(incoming, incoming.name)
+                    })
+                  )
+                )
+              : incoming
+
+          yield* engine.learnCustomEntities(nextEntities)
+
+          const entityNames = nextEntities
+            .toArray()
+            .map((entity) => entity.name)
+            .sort((a, b) => a.localeCompare(b))
+
+          return {
+            groupName: nextEntities.name,
+            mode: requestedMode,
+            learnedEntityCount: incoming.size(),
+            totalEntityCount: nextEntities.size(),
+            entityNames
+          }
         }).pipe(Effect.orDie),
 
       QueryCorpus: ({ corpusId, includeText, query, topN }) =>

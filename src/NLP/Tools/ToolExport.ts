@@ -70,6 +70,9 @@ const USAGE_EXAMPLES: Record<string, ReadonlyArray<string>> = {
     "await LearnCorpus(corpusId, [{ id: 'doc-1', text: 'Refund policy details' }])",
     "await LearnCorpus(corpusId, docs, true)"
   ],
+  LearnCustomEntities: [
+    "await LearnCustomEntities('custom-entities', 'append', [{ name: 'PERSON_NAME', patterns: ['[PROPN]', '[PROPN]'] }])"
+  ],
   QueryCorpus: [
     'const { ranked } = await QueryCorpus(corpusId, "refund policy", 5, true)'
   ],

@@ -20,6 +20,7 @@ const EXPECTED_TOOL_NAMES = [
   "ExtractEntities",
   "ExtractKeywords",
   "LearnCorpus",
+  "LearnCustomEntities",
   "QueryCorpus",
   "RankByRelevance",
   "Sentences",
@@ -32,7 +33,7 @@ const EXPECTED_TOOL_NAMES = [
 const exportTools = Effect.succeed(Effect.runSync(exportToolsEffect))
 
 describe("ToolExport", () => {
-  it.effect("exports all 14 tools", () =>
+  it.effect("exports all 15 tools", () =>
     Effect.gen(function*() {
       const tools = yield* exportTools
       const names = tools.map((t) => t.name).slice().sort()
@@ -231,6 +232,54 @@ describe("ToolExport", () => {
       })
     )
 
+    it.effect("LearnCustomEntities handles positional args", () =>
+      Effect.gen(function*() {
+        const tools = yield* exportTools
+        const learnCustomEntities = findTool(tools, "LearnCustomEntities")
+        const extractEntities = findTool(tools, "ExtractEntities")
+
+        assert.deepStrictEqual(learnCustomEntities.parameterNames, [
+          "groupName",
+          "mode",
+          "entities"
+        ])
+
+        const learned = yield* learnCustomEntities.handle([
+          "export-custom-entities",
+          "replace",
+          [
+            {
+              name: "PERSON_NAME",
+              patterns: ["[PROPN]", "[PROPN]"]
+            }
+          ]
+        ])
+        assertIsObject(learned)
+        const learnedResult = learned as {
+          mode: string
+          learnedEntityCount: number
+          totalEntityCount: number
+          entityNames: Array<string>
+        }
+        assert.strictEqual(learnedResult.mode, "replace")
+        assert.strictEqual(learnedResult.learnedEntityCount, 1)
+        assert.isTrue(learnedResult.totalEntityCount >= 1)
+        assert.isTrue(learnedResult.entityNames.includes("PERSON_NAME"))
+
+        const extracted = yield* extractEntities.handle([
+          "John Doe met Jane Roe yesterday.",
+          true
+        ])
+        assertIsObject(extracted)
+        const extractedResult = extracted as {
+          customEntityCount: number
+          customEntityTypes: Array<string>
+        }
+        assert.isTrue(extractedResult.customEntityCount >= 1)
+        assert.isTrue(extractedResult.customEntityTypes.includes("PERSON_NAME"))
+      })
+    )
+
     it.effect("DeleteCorpus handles positional corpusId arg", () =>
       Effect.gen(function*() {
         const tools = yield* exportTools
@@ -301,7 +350,10 @@ describe("ToolExport", () => {
       Effect.gen(function*() {
         const tools = yield* exportTools
         const extractEntities = findTool(tools, "ExtractEntities")
-        assert.deepStrictEqual(extractEntities.parameterNames, ["text"])
+        assert.deepStrictEqual(extractEntities.parameterNames, [
+          "text",
+          "includeCustom"
+        ])
         const result = yield* extractEntities.handle([
           "Email john@example.com by 2026-01-15."
         ])
@@ -315,6 +367,15 @@ describe("ToolExport", () => {
           }>
           entityCount: number
           entityTypes: Array<string>
+          customEntities: Array<{
+            source?: string
+          }>
+          customEntityCount: number
+          customEntityTypes: Array<string>
+          allEntities: Array<{
+            source?: string
+          }>
+          allEntityCount: number
         }
         assert.strictEqual(r.entityCount, r.entities.length)
         for (const entity of r.entities) {
@@ -323,6 +384,11 @@ describe("ToolExport", () => {
           assert.isTrue(entity.end >= entity.start)
         }
         assert.isTrue(Array.isArray(r.entityTypes))
+        assert.isTrue(Array.isArray(r.customEntities))
+        assert.strictEqual(r.customEntityCount, r.customEntities.length)
+        assert.isTrue(Array.isArray(r.customEntityTypes))
+        assert.isTrue(Array.isArray(r.allEntities))
+        assert.strictEqual(r.allEntityCount, r.allEntities.length)
       })
     )
 

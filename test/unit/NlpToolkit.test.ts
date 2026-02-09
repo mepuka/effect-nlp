@@ -11,7 +11,7 @@ import {
 } from "../../src/NLP/Tools/NlpToolkit.js"
 
 describe("NlpToolkit", () => {
-  it("exports all fourteen tools", () => {
+  it("exports all fifteen tools", () => {
     const toolNames = Object.keys(NlpToolkit.tools)
     assert.deepStrictEqual(toolNames.sort(), [
       "ChunkBySentences",
@@ -22,6 +22,7 @@ describe("NlpToolkit", () => {
       "ExtractEntities",
       "ExtractKeywords",
       "LearnCorpus",
+      "LearnCustomEntities",
       "QueryCorpus",
       "RankByRelevance",
       "Sentences",

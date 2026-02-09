@@ -135,6 +135,9 @@ export const AiEntitySchema = Schema.Struct({
   }),
   endTokenIndex: Schema.Number.annotations({
     description: "Inclusive token index where the entity ends"
+  }),
+  source: Schema.optional(Schema.Literal("builtin", "custom")).annotations({
+    description: "Whether the entity came from built-in or learned custom patterns"
   })
 }).annotations({
   title: "Entity",

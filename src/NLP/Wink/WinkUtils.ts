@@ -12,7 +12,14 @@ import { createRequire } from "module";
 
 // Import wink-nlp-utils using createRequire for ES modules
 const require = createRequire(import.meta.url);
-const nlpUtils = require("wink-nlp-utils");
+let nlpUtilsCache: ReturnType<typeof require> | undefined
+
+const getNlpUtils = (): ReturnType<typeof require> => {
+  if (nlpUtilsCache === undefined) {
+    nlpUtilsCache = require("wink-nlp-utils")
+  }
+  return nlpUtilsCache
+};
 
 /**
  * Text transformation input
@@ -315,7 +322,7 @@ const createWinkUtilsImpl = () => {
       Effect.try({
         try: () => {
           const validatedText = validateTextInput(input.text);
-          const result = nlpUtils.string.amplifyNotElision(validatedText);
+          const result = getNlpUtils().string.amplifyNotElision(validatedText);
           return createTextResult(validatedText, result);
         },
         catch: (error) =>
@@ -328,7 +335,7 @@ const createWinkUtilsImpl = () => {
     removeElisions: (input: TextInput) =>
       Effect.try({
         try: () => {
-          const result = nlpUtils.string.removeElisions(input.text);
+          const result = getNlpUtils().string.removeElisions(input.text);
           return createTextResult(input.text, result);
         },
         catch: (error) =>
@@ -341,7 +348,7 @@ const createWinkUtilsImpl = () => {
     removeExtraSpaces: (input: TextInput) =>
       Effect.try({
         try: () => {
-          const result = nlpUtils.string.removeExtraSpaces(input.text);
+          const result = getNlpUtils().string.removeExtraSpaces(input.text);
           return createTextResult(input.text, result);
         },
         catch: (error) =>
@@ -354,7 +361,7 @@ const createWinkUtilsImpl = () => {
     removeHTMLTags: (input: TextInput) =>
       Effect.try({
         try: () => {
-          const result = nlpUtils.string.removeHTMLTags(input.text);
+          const result = getNlpUtils().string.removeHTMLTags(input.text);
           return createTextResult(input.text, result);
         },
         catch: (error) =>
@@ -367,7 +374,7 @@ const createWinkUtilsImpl = () => {
     removePunctuations: (input: TextInput) =>
       Effect.try({
         try: () => {
-          const result = nlpUtils.string.removePunctuations(input.text);
+          const result = getNlpUtils().string.removePunctuations(input.text);
           return createTextResult(input.text, result);
         },
         catch: (error) =>
@@ -380,7 +387,7 @@ const createWinkUtilsImpl = () => {
     removeSplChars: (input: TextInput) =>
       Effect.try({
         try: () => {
-          const result = nlpUtils.string.removeSplChars(input.text);
+          const result = getNlpUtils().string.removeSplChars(input.text);
           return createTextResult(input.text, result);
         },
         catch: (error) =>
@@ -393,7 +400,7 @@ const createWinkUtilsImpl = () => {
     retainAlphaNums: (input: TextInput) =>
       Effect.try({
         try: () => {
-          const result = nlpUtils.string.retainAlphaNums(input.text);
+          const result = getNlpUtils().string.retainAlphaNums(input.text);
           return createTextResult(input.text, result);
         },
         catch: (error) =>
@@ -406,7 +413,7 @@ const createWinkUtilsImpl = () => {
     lowerCase: (input: TextInput) =>
       Effect.try({
         try: () => {
-          const result = nlpUtils.string.lowerCase(input.text);
+          const result = getNlpUtils().string.lowerCase(input.text);
           return createTextResult(input.text, result);
         },
         catch: (error) =>
@@ -419,7 +426,7 @@ const createWinkUtilsImpl = () => {
     upperCase: (input: TextInput) =>
       Effect.try({
         try: () => {
-          const result = nlpUtils.string.upperCase(input.text);
+          const result = getNlpUtils().string.upperCase(input.text);
           return createTextResult(input.text, result);
         },
         catch: (error) =>
@@ -432,7 +439,7 @@ const createWinkUtilsImpl = () => {
     trim: (input: TextInput) =>
       Effect.try({
         try: () => {
-          const result = nlpUtils.string.trim(input.text);
+          const result = getNlpUtils().string.trim(input.text);
           return createTextResult(input.text, result);
         },
         catch: (error) =>
@@ -445,7 +452,7 @@ const createWinkUtilsImpl = () => {
     extractPersonsName: (input: TextInput) =>
       Effect.try({
         try: () => {
-          const result = nlpUtils.string.extractPersonsName(input.text);
+          const result = getNlpUtils().string.extractPersonsName(input.text);
           return createTextResult(input.text, result);
         },
         catch: (error) =>
@@ -458,7 +465,7 @@ const createWinkUtilsImpl = () => {
     extractRunOfCapitalWords: (input: TextInput) =>
       Effect.try({
         try: () => {
-          const result = nlpUtils.string.extractRunOfCapitalWords(input.text);
+          const result = getNlpUtils().string.extractRunOfCapitalWords(input.text);
           // extractRunOfCapitalWords returns an array, join it to a string
           const resultText = Array.isArray(result)
             ? result.join(", ")
@@ -476,7 +483,7 @@ const createWinkUtilsImpl = () => {
     tokenize: (input: TextInput) =>
       Effect.try({
         try: () => {
-          const result = nlpUtils.string.tokenize(input.text, false);
+          const result = getNlpUtils().string.tokenize(input.text, false);
           // Filter out any null/undefined values and ensure strings
           const cleanResult = result
             .filter((token: any) => token != null)
@@ -498,7 +505,7 @@ const createWinkUtilsImpl = () => {
       Effect.try({
         try: () => {
           const result: Array<{ value: string; tag: string }> =
-            nlpUtils.string.tokenize(input.text, true);
+            getNlpUtils().string.tokenize(input.text, true);
           const detailedTokens = Chunk.fromIterable(
             result.map((token) => {
               // Validate tag type
@@ -547,7 +554,7 @@ const createWinkUtilsImpl = () => {
     tokenize0: (input: TextInput) =>
       Effect.try({
         try: () => {
-          const result = nlpUtils.string.tokenize0(input.text);
+          const result = getNlpUtils().string.tokenize0(input.text);
           // Filter out any null/undefined values and ensure strings
           const cleanResult = result
             .filter((token: any) => token != null)
@@ -569,7 +576,7 @@ const createWinkUtilsImpl = () => {
     sentences: (input: TextInput) =>
       Effect.try({
         try: () => {
-          const result = nlpUtils.string.sentences(input.text);
+          const result = getNlpUtils().string.sentences(input.text);
           const sentences = Chunk.fromIterable(result);
           return SentencesResult({
             sentences: sentences as Chunk.Chunk<string>,
@@ -587,7 +594,7 @@ const createWinkUtilsImpl = () => {
     bagOfNGrams: (input: TextInput, config: NGramConfig) =>
       Effect.try({
         try: () => {
-          const result = nlpUtils.string.bagOfNGrams(input.text, config.size);
+          const result = getNlpUtils().string.bagOfNGrams(input.text, config.size);
           const totalNGrams = Object.values(result).reduce((a, b) => {
             return (a as number) + (b as number);
           }, 0);
@@ -607,7 +614,7 @@ const createWinkUtilsImpl = () => {
     edgeNGrams: (input: TextInput, config: NGramConfig) =>
       Effect.try({
         try: () => {
-          const result = nlpUtils.string.edgeNGrams(input.text, config.size);
+          const result = getNlpUtils().string.edgeNGrams(input.text, config.size);
           // edgeNGrams returns an array, convert to object with counts
           const ngrams: { [key: string]: number } = {};
           if (Array.isArray(result)) {
@@ -631,7 +638,7 @@ const createWinkUtilsImpl = () => {
     setOfNGrams: (input: TextInput, config: NGramConfig) =>
       Effect.try({
         try: () => {
-          const result = nlpUtils.string.setOfNGrams(input.text, config.size);
+          const result = getNlpUtils().string.setOfNGrams(input.text, config.size);
           // setOfNGrams returns a Set, convert to object with counts
           const ngrams: { [key: string]: number } = {};
           if (result instanceof Set) {
@@ -656,7 +663,7 @@ const createWinkUtilsImpl = () => {
     composeCorpus: (input: CorpusTemplate) =>
       Effect.try({
         try: () => {
-          const result = nlpUtils.string.composeCorpus(input.template);
+          const result = getNlpUtils().string.composeCorpus(input.template);
           const sentences = Chunk.fromIterable(result);
           return CorpusResult({
             sentences: sentences as Chunk.Chunk<string>,
@@ -679,10 +686,10 @@ const createWinkUtilsImpl = () => {
           const customStopWords = Option.match(config.customStopWords, {
             onNone: () => undefined, // Use default stop words from wink-nlp-utils
             onSome: (words) =>
-              nlpUtils.helper.returnWordsFilter(Chunk.toReadonlyArray(words)),
+              getNlpUtils().helper.returnWordsFilter(Chunk.toReadonlyArray(words)),
           });
 
-          const result = nlpUtils.tokens.removeWords(
+          const result = getNlpUtils().tokens.removeWords(
             tokensArray,
             customStopWords
           );
@@ -703,7 +710,7 @@ const createWinkUtilsImpl = () => {
       Effect.try({
         try: () => {
           const tokensArray = Chunk.toReadonlyArray(input.tokens);
-          const result = nlpUtils.tokens.stem(tokensArray);
+          const result = getNlpUtils().tokens.stem(tokensArray);
           const stemmedTokens = Chunk.fromIterable(result);
           return createTokensResult(
             input.tokens,
@@ -721,7 +728,7 @@ const createWinkUtilsImpl = () => {
       Effect.try({
         try: () => {
           const tokensArray = Chunk.toReadonlyArray(input.tokens);
-          const result = nlpUtils.tokens.phonetize(tokensArray);
+          const result = getNlpUtils().tokens.phonetize(tokensArray);
           const phoneticTokens = Chunk.fromIterable(result);
           return createTokensResult(
             input.tokens,
@@ -739,7 +746,7 @@ const createWinkUtilsImpl = () => {
       Effect.try({
         try: () => {
           const tokensArray = Chunk.toReadonlyArray(input.tokens);
-          const result = nlpUtils.tokens.soundex(tokensArray);
+          const result = getNlpUtils().tokens.soundex(tokensArray);
           const soundexTokens = Chunk.fromIterable(result);
           return createTokensResult(
             input.tokens,
@@ -757,7 +764,7 @@ const createWinkUtilsImpl = () => {
       Effect.try({
         try: () => {
           const tokensArray = Chunk.toReadonlyArray(input.tokens);
-          const result = nlpUtils.tokens.bagOfWords(tokensArray);
+          const result = getNlpUtils().tokens.bagOfWords(tokensArray);
           const totalWords = Object.values(result).reduce((a, b) => {
             return (a as number) + (b as number);
           }, 0);
@@ -778,7 +785,7 @@ const createWinkUtilsImpl = () => {
       Effect.try({
         try: () => {
           const tokensArray = Chunk.toReadonlyArray(input.tokens);
-          const result = nlpUtils.tokens.setOfWords(tokensArray);
+          const result = getNlpUtils().tokens.setOfWords(tokensArray);
           // setOfWords returns a Set, convert to object with counts
           const ngrams: { [key: string]: number } = {};
           if (result instanceof Set) {
@@ -803,7 +810,7 @@ const createWinkUtilsImpl = () => {
       Effect.try({
         try: () => {
           const tokensArray = Chunk.toReadonlyArray(input.tokens);
-          const result = nlpUtils.tokens.bigrams(tokensArray);
+          const result = getNlpUtils().tokens.bigrams(tokensArray);
           // bigrams returns array of arrays, we need to handle this properly
           const bigramTokens = Chunk.fromIterable(result);
           return createTokensResult(
@@ -822,7 +829,7 @@ const createWinkUtilsImpl = () => {
       Effect.try({
         try: () => {
           const tokensArray = Chunk.toReadonlyArray(input.tokens);
-          const result = nlpUtils.tokens.appendBigrams(tokensArray);
+          const result = getNlpUtils().tokens.appendBigrams(tokensArray);
           const appendedTokens = Chunk.fromIterable(result);
           return createTokensResult(
             input.tokens,
@@ -840,7 +847,7 @@ const createWinkUtilsImpl = () => {
       Effect.try({
         try: () => {
           const tokensArray = Chunk.toReadonlyArray(input.tokens);
-          const result = nlpUtils.tokens.propagateNegations(tokensArray);
+          const result = getNlpUtils().tokens.propagateNegations(tokensArray);
           const negatedTokens = Chunk.fromIterable(result);
           return createTokensResult(
             input.tokens,

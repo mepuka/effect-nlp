@@ -3,7 +3,7 @@
  * @since 3.0.0
  */
 
-import { Effect, Ref } from "effect";
+import { Effect, Option, Ref } from "effect";
 import type { Document, ItemToken } from "wink-nlp";
 import type { WinkEngineCustomEntities } from "./WinkPattern.js";
 import { WinkEngineRef } from "./WinkEngineRef.js";
@@ -98,6 +98,20 @@ export class WinkEngine extends Effect.Service<WinkEngine>()(
               `Learned ${customEntities.size()} custom entities`
             );
           }),
+
+        /**
+         * Get currently learned custom entities, if any
+         */
+        getCurrentCustomEntities: (): Effect.Effect<
+          Option.Option<WinkEngineCustomEntities>
+        > =>
+          Ref.get(stateRef).pipe(
+            Effect.map((state) =>
+              state.customEntities === undefined
+                ? Option.none()
+                : Option.some(state.customEntities)
+            )
+          ),
       };
     }),
     dependencies: [WinkEngineRef.Default],
